@@ -5,6 +5,7 @@ functions: no network, no `cloudron` CLI, no django-simple-deploy core. Both the
 retrofit deployer (M1) and the greenfield scaffolder (M2) call render_all().
 """
 
+import json
 import os
 import stat
 from dataclasses import dataclass
@@ -121,3 +122,44 @@ def _pip_install_block(pkg_manager):
     added in Task 5.
     """
     return ""
+
+
+def render_manifest(config):
+    """Build CloudronManifest.json as a dict and serialize it."""
+    addons = {
+        "localstorage": {},
+        "postgresql": {},
+    }
+    if config.enable_redis:
+        addons["redis"] = {"noPassword": True}
+    if config.enable_sendmail:
+        addons["sendmail"] = {"supportsDisplayName": True}
+    if config.enable_sso:
+        addons["oidc"] = {"loginRedirectUri": "/accounts/oidc/cloudron/login/callback/"}
+
+    manifest = {
+        "manifestVersion": 2,
+        "id": config.app_id,
+        "title": config.display_title(),
+        "author": config.author,
+        "version": config.version,
+        "description": "Deployed with dsd-cloudron.",
+        "tagline": "A Django application on Cloudron.",
+        "healthCheckPath": config.health_check_path,
+        "httpPort": config.http_port,
+        "memoryLimit": config.memory_limit,
+        "optionalSso": True,
+        "addons": addons,
+        "checklist": {
+            "change-default-password": {
+                "message": "Change the default admin password",
+            }
+        },
+        "postInstallMessage": (
+            "This app was configured with dsd-cloudron. A default admin account "
+            "was created (username `admin`, password `changeme123`). Sign in and "
+            "change the password immediately. See README-cloudron.md in the app "
+            "source for the full configuration control surface."
+        ),
+    }
+    return json.dumps(manifest, indent=2) + "\n"
