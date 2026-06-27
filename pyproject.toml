@@ -45,6 +45,7 @@ packages = [
 include-package-data = true
 
 [tool.black]
-# The golden snapshot fixtures are byte-exact render output, not source code;
-# black must not reformat them or they stop matching the render functions.
-force-exclude = "tests/unit_tests/expected/"
+# The golden snapshot fixtures and the integration reference files are byte-exact
+# render output, not source code; black must not reformat them or they stop
+# matching the render functions and the deployed artifacts.
+force-exclude = "tests/unit_tests/expected/|tests/integration_tests/reference_files/"
