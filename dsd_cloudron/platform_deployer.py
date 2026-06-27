@@ -159,7 +159,26 @@ class PlatformDeployer:
         plugin_utils.add_packages(requirements)
 
     def _conclude_automate_all(self):
-        pass
+        if not dsd_config.automate_all:
+            return
+        if dsd_config.unit_testing:
+            return
+        plugin_utils.commit_changes()
+        # install() streams the build, raises a clean DSDCommandError on failure,
+        # and returns "" (the URL is not scraped from the slow-command output).
+        self.deployed_url = cloudron_cli.install(self.config, plugin_config.location)
 
     def _show_success_message(self):
-        pass
+        # Branch on automate_all, not on deployed_url: the deployed URL is not
+        # scraped from the build output (always empty), so keying on it would
+        # never show the automate-all message after a real install.
+        if dsd_config.automate_all:
+            msg = platform_msgs.success_msg_automate_all(self.deployed_url)
+        else:
+            msg = platform_msgs.success_msg(self.config, plugin_config.location)
+        summary = platform_msgs.changes_summary(self.config, self._added_requirements)
+        msg = f"{msg}\n{summary}\n"
+        notes = platform_msgs.followup_notes(self.config)
+        if notes:
+            msg = f"{msg}\n{notes}\n"
+        plugin_utils.write_output(msg)
