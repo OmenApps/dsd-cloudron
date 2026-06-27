@@ -118,7 +118,15 @@ class PlatformDeployer:
         plugin_utils.modify_settings_file(template_path)
 
     def _add_requirements(self):
-        pass
+        requirements = ["gunicorn", "psycopg2-binary"]
+        if plugin_config.enable_redis:
+            requirements.append("django-redis")
+        if plugin_config.enable_celery:
+            requirements.append("celery")
+        if plugin_config.enable_sso:
+            requirements.append("django-allauth")
+        self._added_requirements = requirements
+        plugin_utils.add_packages(requirements)
 
     def _conclude_automate_all(self):
         pass
