@@ -16,10 +16,16 @@ def test_plugin_help_output(tmp_project, request):
     stdout, stderr = msp.call_deploy(tmp_project, cmd, platform="cloudron")
     for fragment in [
         "--location",
+        "--app-id",
+        "--memory-limit",
+        "--health-check-path",
+        "--force-overwrite",
+        "--server",
+        "--allow-selfsigned",
         "--no-redis",
+        "--no-sendmail",
         "--celery",
         "--sso",
-        "--health-check-path",
     ]:
         assert fragment in stdout
     # The API token is intentionally not a CLI flag; auth comes from the

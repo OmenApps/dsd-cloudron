@@ -10,16 +10,24 @@ checkout that has it.
 ## Deterministic references (generated from `packaging.render_all`)
 
 These are byte-identical to what `PlatformDeployer` writes, because both go
-through the same render core. They were produced for the sample project package
-name `blog`:
+through the same render core (`packaging.render_all`). They were produced for the
+sample project package name `blog`:
 
 - `CloudronManifest.json`, `Dockerfile`, `poetry.Dockerfile`, `pipenv.Dockerfile`
-- `start.sh`, `nginx.conf`, `supervisor/gunicorn.conf`
+- `start.sh`, `nginx.conf`, `supervisor/gunicorn.conf`, `README-cloudron.md`
 - `blog/cloudron_settings.py`
-- `celery_sso.*` (the `--celery --sso` build: manifest, settings, celery worker/beat
-  confs, `celery.py`, and the `__init__` wiring)
+- `celery_sso.*` for the `--celery --sso` build: `celery_sso.CloudronManifest.json`,
+  `celery_sso.cloudron_settings.py`, `celery_sso.supervisor.celery-worker.conf`,
+  `celery_sso.supervisor.celery-beat.conf`, `celery_sso.celery.py`
 
 If the render core changes, regenerate them.
+
+## Deployer-written reference (not from render_all)
+
+- `celery_sso.init.py` is written by the deployer's `_add_celery_app`, not by
+  `render_all`. It assumes a standard `startproject` baseline `__init__.py`
+  (empty), so it is exactly the appended import line. If the harness sample's
+  `__init__.py` is not empty, recapture this from a harness run.
 
 ## Harness-derived references (capture from a real harness run)
 

@@ -115,7 +115,7 @@ def changes_summary(config, added_requirements):
         "Changes made to your project:",
         f"- Cloudron addons declared in the manifest: {', '.join(addons)}.",
         "- Rendered the Cloudron artifact set (CloudronManifest.json, Dockerfile, "
-        "start.sh, nginx.conf, supervisor/, cloudron_settings.py, "
+        ".dockerignore, start.sh, nginx.conf, supervisor/, cloudron_settings.py, "
         "README-cloudron.md; see the per-file lines above for written vs skipped) "
         "and appended the settings import.",
     ]

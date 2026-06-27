@@ -54,6 +54,10 @@ def test_supervisor_gunicorn(tmp_project):
     hf.check_reference_file(tmp_project, "supervisor/gunicorn.conf", "dsd-cloudron")
 
 
+def test_readme(tmp_project):
+    hf.check_reference_file(tmp_project, "README-cloudron.md", "dsd-cloudron")
+
+
 def test_cloudron_settings(tmp_project):
     hf.check_reference_file(tmp_project, "blog/cloudron_settings.py", "dsd-cloudron")
 
@@ -73,4 +77,4 @@ def test_requirements_txt(tmp_project, pkg_manager, tmp_path, dsd_version):
             tmp_path=tmp_path,
         )
     else:
-        assert not Path("requirements.txt").exists()
+        assert not (tmp_project / "requirements.txt").exists()

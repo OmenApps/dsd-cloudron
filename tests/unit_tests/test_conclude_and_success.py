@@ -37,9 +37,12 @@ def test_conclude_commits_and_installs(monkeypatch):
     monkeypatch.setattr(
         pd.plugin_utils, "commit_changes", lambda: calls.append("commit")
     )
-    monkeypatch.setattr(
-        pd.cloudron_cli, "install", lambda config, location: calls.append("install")
-    )
+
+    def fake_install(config, location):
+        calls.append("install")
+        return ""  # mirror the real install(), which returns "" (no scraped URL)
+
+    monkeypatch.setattr(pd.cloudron_cli, "install", fake_install)
     dsd_config.automate_all = True
     dsd_config.unit_testing = False
     _deployer()._conclude_automate_all()
@@ -69,6 +72,9 @@ def test_success_message_automate_all_branch(monkeypatch):
     deployer._show_success_message()
     # The automate-all branch is chosen on automate_all alone, not on a URL.
     assert any("deployed to Cloudron" in m for m in written)
+    # With an empty URL the message must fall back to telling the user how to
+    # find the running app; that fallback is all they ever see in practice.
+    assert any("cloudron list" in m for m in written)
 
 
 def test_success_message_lists_changes(monkeypatch):
