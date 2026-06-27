@@ -1,0 +1,68 @@
+import pytest
+
+from dsd_cloudron import platform_deployer as pd
+from dsd_cloudron.platform_deployer import PlatformDeployer
+from dsd_cloudron.plugin_config import plugin_config
+from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
+from django_simple_deploy.management.commands.utils.command_errors import (
+    DSDCommandError,
+)
+
+
+def test_build_config_maps_flags():
+    dsd_config.unit_testing = True
+    dsd_config.local_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+
+    plugin_config.app_id = ""
+    plugin_config.memory_limit = 1073741824
+    plugin_config.health_check_path = "/healthz/"
+    plugin_config.enable_redis = True
+    plugin_config.enable_sendmail = False
+    plugin_config.enable_celery = True
+    plugin_config.enable_sso = True
+
+    config = PlatformDeployer()._build_config()
+    assert config.project_name == "blog"
+    assert config.app_id == "com.example.blog"
+    assert config.pkg_manager == "req_txt"
+    assert config.health_check_path == "/healthz/"
+    assert config.enable_redis is True
+    assert config.enable_sendmail is False
+    assert config.enable_celery is True
+    assert config.enable_sso is True
+
+
+def test_build_config_respects_explicit_app_id():
+    dsd_config.local_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    plugin_config.app_id = "io.omenapps.blog"
+    config = PlatformDeployer()._build_config()
+    assert config.app_id == "io.omenapps.blog"
+
+
+def test_validate_platform_under_guard_sets_name():
+    dsd_config.unit_testing = True
+    dsd_config.deployed_project_name = "blog"
+    deployer = PlatformDeployer()
+    deployer._validate_platform()
+    assert deployer.deployed_project_name == "blog"
+
+
+def test_check_cloudron_settings_aborts_on_existing_block(tmp_path, monkeypatch):
+    # Exercise the re-run safety guard directly. It sits behind the unit_testing
+    # guard in _validate_platform, so neither the unit nor the integration suite
+    # reaches it otherwise; this test drives it with the guard off.
+    settings = tmp_path / "settings.py"
+    settings.write_text(
+        "SECRET_KEY = 'x'\n\n# dsd-cloudron settings.\n"
+        "from .cloudron_settings import *\n",
+        encoding="utf-8",
+    )
+    dsd_config.unit_testing = False
+    dsd_config.settings_path = settings
+    # Decline the overwrite prompt -> check_settings raises DSDCommandError.
+    monkeypatch.setattr(pd.plugin_utils, "get_confirmation", lambda msg: False)
+
+    with pytest.raises(DSDCommandError):
+        PlatformDeployer()._check_cloudron_settings()
