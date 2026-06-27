@@ -170,6 +170,11 @@ def render_start_sh(config):
     return _render_template("start.sh", _context(config))
 
 
+def render_nginx_conf(config):
+    """Render the nginx config that fronts gunicorn."""
+    return _render_template("nginx.conf", _context(config))
+
+
 def render_manifest(config):
     """Build CloudronManifest.json as a dict and serialize it."""
     addons = {
