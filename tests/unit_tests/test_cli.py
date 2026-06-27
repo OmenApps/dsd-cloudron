@@ -1,0 +1,66 @@
+import pytest
+
+from dsd_cloudron import cli
+from dsd_cloudron.plugin_config import plugin_config
+
+
+def _options(**overrides):
+    base = {
+        "location": "blog",
+        "app_id": "",
+        "memory_limit": 1073741824,
+        "health_check_path": "/",
+        "force_overwrite": False,
+        "server": "",
+        "token": "",
+        "allow_selfsigned": False,
+        "no_redis": False,
+        "no_sendmail": False,
+        "celery": False,
+        "sso": False,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_validate_cli_writes_defaults_onto_config():
+    # Reset to a clean state for assertions.
+    plugin_config.enable_redis = True
+    plugin_config.enable_sendmail = True
+    cli.validate_cli(_options())
+    assert plugin_config.location == "blog"
+    assert plugin_config.enable_redis is True
+    assert plugin_config.enable_sendmail is True
+    assert plugin_config.enable_celery is False
+    assert plugin_config.enable_sso is False
+
+
+def test_validate_cli_inverts_opt_out_flags():
+    cli.validate_cli(_options(no_redis=True, no_sendmail=True))
+    assert plugin_config.enable_redis is False
+    assert plugin_config.enable_sendmail is False
+
+
+def test_validate_cli_sets_app_intrusive_flags():
+    cli.validate_cli(_options(celery=True, sso=True))
+    assert plugin_config.enable_celery is True
+    assert plugin_config.enable_sso is True
+
+
+def test_validate_cli_rejects_celery_without_redis():
+    from django_simple_deploy.management.commands.utils.command_errors import (
+        DSDCommandError,
+    )
+
+    with pytest.raises(DSDCommandError):
+        cli.validate_cli(_options(celery=True, no_redis=True))
+
+
+def test_parser_registration_adds_flags():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    cli.PluginCLI(parser)
+    text = parser.format_help()
+    for flag in ["--location", "--no-redis", "--celery", "--sso", "--force-overwrite"]:
+        assert flag in text
