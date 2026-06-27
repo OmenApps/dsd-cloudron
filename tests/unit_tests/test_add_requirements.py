@@ -13,11 +13,10 @@ def test_base_requirements(monkeypatch):
     plugin_config.enable_celery = False
     plugin_config.enable_sso = False
     PlatformDeployer()._add_requirements()
-    assert captured["pkgs"] == ["gunicorn", "psycopg2-binary"]
-    assert "whitenoise" not in captured["pkgs"]
+    assert captured["pkgs"] == ["gunicorn", "psycopg[binary]"]
 
 
-def test_optional_requirements(monkeypatch):
+def test_all_optional_requirements(monkeypatch):
     captured = {}
     monkeypatch.setattr(
         pd.plugin_utils, "add_packages", lambda pkgs: captured.update(pkgs=pkgs)
@@ -27,9 +26,14 @@ def test_optional_requirements(monkeypatch):
     plugin_config.enable_celery = True
     plugin_config.enable_sso = True
     PlatformDeployer()._add_requirements()
-    assert "django-redis" in captured["pkgs"]
-    assert "celery" in captured["pkgs"]
-    assert "django-allauth" in captured["pkgs"]
+    # Exact ordered list so a reorder or an extra package is caught.
+    assert captured["pkgs"] == [
+        "gunicorn",
+        "psycopg[binary]",
+        "django-redis",
+        "celery[redis]",
+        "django-allauth",
+    ]
 
 
 def test_added_requirements_recorded_for_success_message(monkeypatch):
@@ -41,6 +45,6 @@ def test_added_requirements_recorded_for_success_message(monkeypatch):
     deployer._add_requirements()
     assert deployer._added_requirements == [
         "gunicorn",
-        "psycopg2-binary",
+        "psycopg[binary]",
         "django-redis",
     ]

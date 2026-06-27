@@ -1,6 +1,8 @@
 {{current_settings}}
 
 # dsd-cloudron settings.
-# Platform configuration lives in cloudron_settings.py beside this file; it is
-# inert unless CLOUDRON_APP_ORIGIN is set, so local development is unaffected.
-from .cloudron_settings import *
+# Platform configuration lives in cloudron_settings.py inside the project
+# package; it is inert unless CLOUDRON_APP_ORIGIN is set, so local development
+# is unaffected. The import is absolute (by package name) so it resolves whether
+# settings.py sits in the package root or under a settings/ subpackage.
+from {{ project_name }}.cloudron_settings import *

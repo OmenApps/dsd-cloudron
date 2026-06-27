@@ -111,8 +111,11 @@ class PlatformDeployer:
         # (in _add_cloudron_artifacts); here we only load it from the package
         # __init__ so Django picks the Celery app up on startup. That edits the
         # user's existing __init__.py, so it stays in the deployer rather than the
-        # shared packaging core. Only add __all__ when the file does not already
-        # define one, so a user's existing __init__ exports are not shadowed.
+        # shared packaging core. Only the import line is appended: executing it at
+        # package import is what creates the Celery app, and celery_app is then a
+        # package attribute regardless. We deliberately do not write an __all__,
+        # which would silently narrow the user's existing `from <project> import *`
+        # surface and is not needed for Celery to discover the app.
         if not self.config.enable_celery:
             return
         root = dsd_config.project_root
@@ -121,13 +124,10 @@ class PlatformDeployer:
         import_line = "from .celery import app as celery_app"
         if import_line in existing:
             return
-        addition = import_line + "\n"
-        if "__all__" not in existing:
-            addition += '\n__all__ = ("celery_app",)\n'
         prefix = (
             existing if (not existing or existing.endswith("\n")) else existing + "\n"
         )
-        init_path.write_text(prefix + addition, encoding="utf-8")
+        init_path.write_text(prefix + import_line + "\n", encoding="utf-8")
         plugin_utils.write_output(
             f"  Wired celery_app into {init_path.relative_to(root)}"
         )
@@ -136,17 +136,23 @@ class PlatformDeployer:
         # The existing-block detection and overwrite prompt already ran in
         # _validate_platform (_check_cloudron_settings), fail-fast before any
         # artifacts were written. Here we only append the import block. The
-        # template references only {{current_settings}}, so no extra context is
-        # passed (modify_settings_file injects current_settings itself).
+        # template needs project_name for the absolute import; modify_settings_file
+        # injects current_settings into the context itself.
         template_path = self.templates_path / "settings_import"
-        plugin_utils.modify_settings_file(template_path)
+        plugin_utils.modify_settings_file(
+            template_path, {"project_name": dsd_config.local_project_name}
+        )
 
     def _add_requirements(self):
-        requirements = ["gunicorn", "psycopg2-binary"]
+        # psycopg[binary] is psycopg3 (native in Django 4.2+) and matches what
+        # README-cloudron.md tells the user is installed. celery[redis] pulls the
+        # redis transport explicitly rather than leaning on django-redis to
+        # supply the client.
+        requirements = ["gunicorn", "psycopg[binary]"]
         if plugin_config.enable_redis:
             requirements.append("django-redis")
         if plugin_config.enable_celery:
-            requirements.append("celery")
+            requirements.append("celery[redis]")
         if plugin_config.enable_sso:
             requirements.append("django-allauth")
         self._added_requirements = requirements
