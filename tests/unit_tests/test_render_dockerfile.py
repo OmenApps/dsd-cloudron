@@ -1,0 +1,63 @@
+from dsd_cloudron.packaging import CloudronAppConfig, render_dockerfile
+
+BASE = "FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c"
+
+
+def _dockerfile(**kwargs):
+    config = CloudronAppConfig(project_name="blog", app_id="com.example.blog", **kwargs)
+    return render_dockerfile(config)
+
+
+def test_final_stage_is_pinned_base():
+    text = _dockerfile()
+    # The pinned base must be the LAST FROM in the file (final build stage).
+    from_lines = [ln for ln in text.splitlines() if ln.startswith("FROM ")]
+    assert from_lines[-1] == BASE
+
+
+def test_no_build_time_collectstatic():
+    assert "collectstatic" not in _dockerfile()
+
+
+def test_copies_runtime_artifacts():
+    text = _dockerfile()
+    assert "COPY supervisor/ /etc/supervisor/conf.d/" in text
+    assert "COPY nginx.conf /app/pkg/nginx.conf" in text
+    assert "COPY start.sh /app/pkg/start.sh" in text
+    assert 'CMD ["/app/pkg/start.sh"]' in text
+
+
+def test_req_txt_install_block():
+    text = _dockerfile(pkg_manager="req_txt")
+    assert "COPY requirements.txt" in text
+    assert "pip install --no-cache-dir -r" in text
+
+
+def test_poetry_install_block():
+    text = _dockerfile(pkg_manager="poetry")
+    assert "poetry" in text
+
+
+def test_pipenv_install_block():
+    text = _dockerfile(pkg_manager="pipenv")
+    assert "pipenv" in text
+
+
+def test_uv_install_block():
+    text = _dockerfile(pkg_manager="uv")
+    assert "uv pip install" in text
+
+
+def test_relocates_supervisord_log_off_readonly_layer():
+    assert "logfile=/run/supervisord.log" in _dockerfile()
+
+
+def test_install_block_not_html_escaped():
+    # Regression guard: the install block is substituted as a {{ variable }} and
+    # contains shell "&&". With autoescape on (the default for a hand-built
+    # Context) it would become "&amp;&amp;" and break the build. The shell
+    # operator must survive verbatim.
+    for manager in ("req_txt", "poetry", "pipenv", "uv"):
+        text = _dockerfile(pkg_manager=manager)
+        assert "&amp;" not in text
+        assert "&& \\" in text

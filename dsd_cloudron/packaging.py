@@ -118,10 +118,42 @@ def _write(path, contents, executable=False):
 def _pip_install_block(pkg_manager):
     """The Dockerfile dependency-install snippet for the chosen package manager.
 
-    Stub returns empty so the module imports; the real per-manager blocks are
-    added in Task 5.
+    The non-req_txt blocks are first-draft and are validated against a real
+    Cloudron build in this milestone's manual checkpoint (Task 11).
     """
-    return ""
+    if pkg_manager == "poetry":
+        return (
+            "COPY pyproject.toml /app/code/pyproject.toml\n"
+            "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip poetry && \\\n"
+            "    cd /app/code && \\\n"
+            "    poetry config virtualenvs.create false && \\\n"
+            "    poetry install --only main --no-root"
+        )
+    if pkg_manager == "pipenv":
+        return (
+            "COPY Pipfile /app/code/Pipfile\n"
+            "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip pipenv && \\\n"
+            "    cd /app/code && \\\n"
+            "    VIRTUAL_ENV=$VENV_PATH pipenv install --skip-lock"
+        )
+    if pkg_manager == "uv":
+        return (
+            "COPY pyproject.toml /app/code/pyproject.toml\n"
+            "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip uv && \\\n"
+            "    cd /app/code && \\\n"
+            "    uv pip install --python $VENV_PATH/bin/python -r pyproject.toml"
+        )
+    # req_txt (default)
+    return (
+        "COPY requirements.txt /app/code/requirements.txt\n"
+        "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \\\n"
+        "    $VENV_PATH/bin/pip install --no-cache-dir -r /app/code/requirements.txt"
+    )
+
+
+def render_dockerfile(config):
+    """Render the Dockerfile for the project's package manager."""
+    return _render_template("dockerfile", _context(config))
 
 
 def render_manifest(config):
