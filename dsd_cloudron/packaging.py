@@ -6,7 +6,6 @@ retrofit deployer (M1) and the greenfield scaffolder (M2) call render_all().
 """
 
 import json
-import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
@@ -82,18 +81,17 @@ class CloudronAppConfig:
 
 
 def _context(config):
-    """Template context shared by the flat-text render functions."""
+    """Template context shared by the flat-text render functions.
+
+    Only the variables the flat templates actually reference are included.
+    Conditional logic (addons, settings blocks, supervisor programs) lives in
+    Python, not in the templates, so the toggle flags are not passed here. Values
+    must be strings: the standalone Engine localizes non-string ints/floats
+    through global settings during rendering, which raises offline.
+    """
     return {
         "project_name": config.project_name,
-        "app_id": config.app_id,
-        "http_port": str(config.http_port),  # string-only context; see _ENGINE note
-        "health_check_path": config.health_check_path,
-        # Booleans are localization-safe (Django's localize() short-circuits
-        # bool) and are only consumed by {% if %} tags, never emitted as {{ }}.
-        "enable_redis": config.enable_redis,
-        "enable_celery": config.enable_celery,
-        "enable_sendmail": config.enable_sendmail,
-        "enable_sso": config.enable_sso,
+        "http_port": str(config.http_port),
         "pip_install_block": _pip_install_block(config.pkg_manager),
     }
 
@@ -212,7 +210,13 @@ def render_dockerignore(config):
 
 
 def render_all(config, target_dir, force=False):
-    """Write the full Cloudron artifact set into target_dir."""
+    """Write the full Cloudron artifact set into target_dir.
+
+    Not transactional: files are written one at a time, so an I/O failure
+    partway through can leave target_dir partially rendered. Callers (the M1
+    deployer, the M2 scaffolder) own recovery; the returned RenderResult lists
+    exactly what was written and what was skipped.
+    """
     target_dir = Path(target_dir)
     pkg_dir = target_dir / config.project_name
     supervisor_dir = target_dir / "supervisor"
@@ -301,6 +305,8 @@ def render_cloudron_settings(config):
         '    ALLOWED_HOSTS = [os.environ["CLOUDRON_APP_DOMAIN"]]\n'
         '    CSRF_TRUSTED_ORIGINS = [os.environ["CLOUDRON_APP_ORIGIN"]]\n'
         '    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")\n'
+        "    SESSION_COOKIE_SECURE = True\n"
+        "    CSRF_COOKIE_SECURE = True\n"
     )
 
     blocks.append(

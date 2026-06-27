@@ -43,3 +43,8 @@ packages = [
     "dsd_cloudron.templates",
 ]
 include-package-data = true
+
+[tool.black]
+# The golden snapshot fixtures are byte-exact render output, not source code;
+# black must not reformat them or they stop matching the render functions.
+force-exclude = "tests/unit_tests/expected/"

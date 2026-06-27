@@ -119,6 +119,54 @@ def test_settings_execute_default_config(monkeypatch):
     assert namespace["CACHES"]["default"]["BACKEND"] == "django_redis.cache.RedisCache"
     assert namespace["EMAIL_USE_TLS"] is False
     assert namespace["EMAIL_USE_SSL"] is False
+    assert namespace["SESSION_COOKIE_SECURE"] is True
+    assert namespace["CSRF_COOKIE_SECURE"] is True
+
+
+def test_settings_execute_full_config(monkeypatch):
+    # Execute the celery + sso conditional blocks (which the default-config golden
+    # snapshot never covers) so a misspelled CLOUDRON_* env var or a wrong
+    # structure surfaces as a KeyError/AssertionError instead of shipping green.
+    env = {
+        "CLOUDRON_APP_ORIGIN": "https://blog.example.com",
+        "CLOUDRON_APP_DOMAIN": "blog.example.com",
+        "SECRET_KEY": "test-key",
+        "CLOUDRON_POSTGRESQL_DATABASE": "app",
+        "CLOUDRON_POSTGRESQL_USERNAME": "app",
+        "CLOUDRON_POSTGRESQL_PASSWORD": "pw",
+        "CLOUDRON_POSTGRESQL_HOST": "127.0.0.1",
+        "CLOUDRON_POSTGRESQL_PORT": "5432",
+        "CLOUDRON_REDIS_URL": "redis://127.0.0.1:6379/0",
+        "CLOUDRON_MAIL_SMTP_SERVER": "mail",
+        "CLOUDRON_MAIL_SMTP_PORT": "25",
+        "CLOUDRON_MAIL_SMTP_USERNAME": "app",
+        "CLOUDRON_MAIL_SMTP_PASSWORD": "pw",
+        "CLOUDRON_OIDC_ISSUER": "https://login.example.com",
+        "CLOUDRON_OIDC_CLIENT_ID": "client",
+        "CLOUDRON_OIDC_CLIENT_SECRET": "secret",
+    }
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    namespace = {}
+    exec(
+        compile(
+            _settings(enable_celery=True, enable_sso=True),
+            "<cloudron_settings>",
+            "exec",
+        ),
+        namespace,
+    )
+
+    assert namespace["CELERY_BROKER_URL"] == "redis://127.0.0.1:6379/0"
+    assert namespace["CELERY_RESULT_BACKEND"] == "redis://127.0.0.1:6379/0"
+    app = namespace["SOCIALACCOUNT_PROVIDERS"]["openid_connect"]["APPS"][0]
+    assert app["provider_id"] == "cloudron"
+    assert app["client_id"] == "client"
+    assert (
+        app["settings"]["server_url"]
+        == "https://login.example.com/.well-known/openid-configuration"
+    )
 
 
 def test_settings_inert_without_cloudron_origin(monkeypatch):

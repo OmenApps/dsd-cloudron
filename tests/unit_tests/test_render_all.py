@@ -55,6 +55,23 @@ def test_skip_if_present_preserves_edits(tmp_path):
     assert manifest.read_text() == '{"hand": "edited"}\n'
 
 
+def test_mixed_skip_and_write_covers_full_set(tmp_path):
+    # A second render where only some files are missing must write the missing
+    # ones and skip the rest, with written + skipped covering the full set (the
+    # skip path must not short-circuit the rest of the orchestration).
+    first = render_all(_config(), tmp_path)
+    full_set = set(first.written)
+
+    (tmp_path / "Dockerfile").unlink()
+    (tmp_path / "supervisor" / "gunicorn.conf").unlink()
+
+    second = render_all(_config(), tmp_path)
+    assert tmp_path / "Dockerfile" in second.written
+    assert tmp_path / "supervisor" / "gunicorn.conf" in second.written
+    assert set(second.written) | set(second.skipped) == full_set
+    assert set(second.written) & set(second.skipped) == set()
+
+
 def test_force_overwrites(tmp_path):
     render_all(_config(), tmp_path)
     manifest = tmp_path / "CloudronManifest.json"

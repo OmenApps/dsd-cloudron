@@ -28,5 +28,6 @@ def _config():
 
 @pytest.mark.parametrize("name,func", CASES.items())
 def test_matches_golden(name, func):
-    expected = (EXPECTED / name).read_text()
+    # Read with explicit utf-8 to match _write's encoding on the generation side.
+    expected = (EXPECTED / name).read_text(encoding="utf-8")
     assert func(_config()) == expected
