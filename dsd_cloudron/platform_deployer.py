@@ -109,7 +109,13 @@ class PlatformDeployer:
         pass
 
     def _modify_settings(self):
-        pass
+        # The existing-block detection and overwrite prompt already ran in
+        # _validate_platform (_check_cloudron_settings), fail-fast before any
+        # artifacts were written. Here we only append the import block. The
+        # template references only {{current_settings}}, so no extra context is
+        # passed (modify_settings_file injects current_settings itself).
+        template_path = self.templates_path / "settings_import"
+        plugin_utils.modify_settings_file(template_path)
 
     def _add_requirements(self):
         pass
