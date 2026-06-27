@@ -106,7 +106,31 @@ class PlatformDeployer:
             )
 
     def _add_celery_app(self):
-        pass
+        # Gate on self.config (the post-_build_config source render_all and the
+        # supervisor confs also read). render_all already wrote <project>/celery.py
+        # (in _add_cloudron_artifacts); here we only load it from the package
+        # __init__ so Django picks the Celery app up on startup. That edits the
+        # user's existing __init__.py, so it stays in the deployer rather than the
+        # shared packaging core. Only add __all__ when the file does not already
+        # define one, so a user's existing __init__ exports are not shadowed.
+        if not self.config.enable_celery:
+            return
+        root = dsd_config.project_root
+        init_path = root / dsd_config.local_project_name / "__init__.py"
+        existing = init_path.read_text(encoding="utf-8") if init_path.exists() else ""
+        import_line = "from .celery import app as celery_app"
+        if import_line in existing:
+            return
+        addition = import_line + "\n"
+        if "__all__" not in existing:
+            addition += '\n__all__ = ("celery_app",)\n'
+        prefix = (
+            existing if (not existing or existing.endswith("\n")) else existing + "\n"
+        )
+        init_path.write_text(prefix + addition, encoding="utf-8")
+        plugin_utils.write_output(
+            f"  Wired celery_app into {init_path.relative_to(root)}"
+        )
 
     def _modify_settings(self):
         # The existing-block detection and overwrite prompt already ran in
