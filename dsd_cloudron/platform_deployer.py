@@ -75,7 +75,20 @@ class PlatformDeployer:
     # --- Steps implemented in later tasks ---
 
     def _add_cloudron_artifacts(self):
-        pass
+        result = packaging.render_all(
+            self.config,
+            dsd_config.project_root,
+            force=plugin_config.force_overwrite,
+        )
+        self._render_result = result
+        root = dsd_config.project_root
+        for path in result.written:
+            plugin_utils.write_output(f"  Wrote {path.relative_to(root)}")
+        for path in result.skipped:
+            plugin_utils.write_output(
+                f"  Skipped existing {path.relative_to(root)} "
+                "(use --force-overwrite to regenerate)"
+            )
 
     def _add_celery_app(self):
         pass
