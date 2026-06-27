@@ -39,3 +39,9 @@ def test_logs_to_stdout_and_workers_run_as_cloudron():
     text = _nginx()
     assert "access_log /dev/stdout;" in text
     assert "user cloudron;" in text
+
+
+def test_nginx_runs_in_foreground():
+    # Without daemon off, nginx backgrounds itself, its supervisord wrapper exits
+    # 0, and supervisord either restart-loops it or marks it complete.
+    assert "daemon off;" in _nginx()

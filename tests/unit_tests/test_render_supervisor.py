@@ -45,8 +45,19 @@ def test_nginx_program_runs_config_and_has_no_user_line():
     assert "user=" not in n
 
 
-def test_celery_beat_schedule_under_run():
+def test_celery_worker_command_bounded_concurrency():
+    worker = _confs(enable_celery=True)["celery-worker.conf"]
+    assert "celery -A blog worker" in worker
+    # Bound concurrency so the prefork pool does not default to the host CPU
+    # count (cgroup-unaware) and OOM against the memory limit.
+    assert "--concurrency=2" in worker
+
+
+def test_celery_beat_schedule_persists_on_app_data():
     confs = _confs(enable_celery=True)
     beat = confs["celery-beat.conf"]
     assert "celery -A blog beat" in beat
-    assert "--schedule /run/blog/celerybeat-schedule" in beat
+    # The schedule file tracks last-run times and must survive restarts, so it
+    # lives on the persistent /app/data volume, not on tmpfs /run.
+    assert "--schedule /app/data/celerybeat-schedule" in beat
+    assert "/run/" not in beat
