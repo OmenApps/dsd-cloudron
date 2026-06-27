@@ -163,3 +163,101 @@ def render_manifest(config):
         ),
     }
     return json.dumps(manifest, indent=2) + "\n"
+
+
+def render_cloudron_settings(config):
+    """Assemble cloudron_settings.py. Every override is under the ON_CLOUDRON gate."""
+    p = config.project_name
+    blocks = []
+
+    blocks.append(
+        '"""Cloudron settings, appended to the project settings via '
+        "`from .cloudron_settings import *`.\n\n"
+        "Active only on Cloudron: the whole block is gated on CLOUDRON_APP_ORIGIN,\n"
+        "so it stays inert during local development and during the image build.\n"
+        '"""\n'
+        "import os\n\n"
+        'if os.environ.get("CLOUDRON_APP_ORIGIN"):\n'
+        "    DEBUG = False\n\n"
+        '    SECRET_KEY = os.environ["SECRET_KEY"]\n\n'
+        '    ALLOWED_HOSTS = [os.environ.get("CLOUDRON_APP_DOMAIN", "")]\n'
+        '    CSRF_TRUSTED_ORIGINS = [os.environ["CLOUDRON_APP_ORIGIN"]]\n'
+        '    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")\n'
+    )
+
+    blocks.append(
+        "    DATABASES = {\n"
+        '        "default": {\n'
+        '            "ENGINE": "django.db.backends.postgresql",\n'
+        '            "NAME": os.environ["CLOUDRON_POSTGRESQL_DATABASE"],\n'
+        '            "USER": os.environ["CLOUDRON_POSTGRESQL_USERNAME"],\n'
+        '            "PASSWORD": os.environ["CLOUDRON_POSTGRESQL_PASSWORD"],\n'
+        '            "HOST": os.environ["CLOUDRON_POSTGRESQL_HOST"],\n'
+        '            "PORT": os.environ["CLOUDRON_POSTGRESQL_PORT"],\n'
+        '            "CONN_MAX_AGE": 60,\n'
+        "        }\n"
+        "    }\n"
+    )
+
+    blocks.append(
+        '    STATIC_URL = "/static/"\n'
+        f'    STATIC_ROOT = "/run/{p}/static"\n'
+        '    MEDIA_URL = "/media/"\n'
+        '    MEDIA_ROOT = "/app/data/media"\n'
+    )
+
+    if config.enable_redis:
+        blocks.append(
+            "    CACHES = {\n"
+            '        "default": {\n'
+            '            "BACKEND": "django_redis.cache.RedisCache",\n'
+            '            "LOCATION": os.environ["CLOUDRON_REDIS_URL"],\n'
+            '            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},\n'
+            "        }\n"
+            "    }\n"
+        )
+
+    if config.enable_celery:
+        blocks.append(
+            '    CELERY_BROKER_URL = os.environ["CLOUDRON_REDIS_URL"]\n'
+            "    CELERY_RESULT_BACKEND = CELERY_BROKER_URL\n"
+        )
+
+    if config.enable_sendmail:
+        blocks.append(
+            '    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"\n'
+            '    EMAIL_HOST = os.environ["CLOUDRON_MAIL_SMTP_SERVER"]\n'
+            '    EMAIL_PORT = int(os.environ["CLOUDRON_MAIL_SMTP_PORT"])\n'
+            '    EMAIL_HOST_USER = os.environ["CLOUDRON_MAIL_SMTP_USERNAME"]\n'
+            '    EMAIL_HOST_PASSWORD = os.environ["CLOUDRON_MAIL_SMTP_PASSWORD"]\n'
+            "    EMAIL_USE_TLS = False\n"
+            '    DEFAULT_FROM_EMAIL = os.environ.get("CLOUDRON_MAIL_FROM", "")\n'
+            "    SERVER_EMAIL = DEFAULT_FROM_EMAIL\n"
+        )
+
+    if config.enable_sso:
+        blocks.append(
+            '    if os.environ.get("CLOUDRON_OIDC_ISSUER"):\n'
+            "        SOCIALACCOUNT_PROVIDERS = {\n"
+            '            "openid_connect": {\n'
+            '                "APPS": [\n'
+            "                    {\n"
+            '                        "provider_id": "cloudron",\n'
+            '                        "name": os.environ.get("CLOUDRON_OIDC_PROVIDER_NAME", "Cloudron"),\n'
+            '                        "client_id": os.environ["CLOUDRON_OIDC_CLIENT_ID"],\n'
+            '                        "secret": os.environ["CLOUDRON_OIDC_CLIENT_SECRET"],\n'
+            '                        "settings": {"server_url": os.environ["CLOUDRON_OIDC_ISSUER"] + "/.well-known/openid-configuration"},\n'
+            "                    }\n"
+            "                ]\n"
+            "            }\n"
+            "        }\n"
+        )
+
+    blocks.append(
+        '    _custom_settings = "/app/data/custom_settings.py"\n'
+        "    if os.path.exists(_custom_settings):\n"
+        "        with open(_custom_settings) as _f:\n"
+        "            exec(_f.read())\n"
+    )
+
+    return "\n".join(blocks)
