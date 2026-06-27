@@ -192,6 +192,16 @@ def render_supervisor_confs(config):
     return confs
 
 
+def render_readme(config):
+    """Render the per-project Cloudron control-surface README."""
+    return _render_template("readme_cloudron.md", _context(config))
+
+
+def render_dockerignore(config):
+    """Render the .dockerignore (static text; config reserved for future use)."""
+    return _render_template("dockerignore", _context(config))
+
+
 def render_manifest(config):
     """Build CloudronManifest.json as a dict and serialize it."""
     addons = {
