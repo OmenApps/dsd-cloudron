@@ -165,6 +165,11 @@ def render_dockerfile(config):
     return _render_template("dockerfile", _context(config))
 
 
+def render_start_sh(config):
+    """Render the root-run start script."""
+    return _render_template("start.sh", _context(config))
+
+
 def render_manifest(config):
     """Build CloudronManifest.json as a dict and serialize it."""
     addons = {
