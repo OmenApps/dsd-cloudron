@@ -14,6 +14,11 @@ from django.template import Context, Engine
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
+# Package managers whose Dockerfile install block is supported. "dsd" is the
+# allowed abbreviation in this codebase; these tokens mirror DSD core's
+# pkg_manager values plus uv.
+SUPPORTED_PKG_MANAGERS = ("req_txt", "poetry", "pipenv", "uv")
+
 # Standalone engine so rendering does not depend on the user's project settings.
 # IMPORTANT: every value in _context must be a string. Django localizes
 # non-string values (int/float) through the global settings during rendering,
@@ -44,6 +49,14 @@ class CloudronAppConfig:
     author: str = ""
 
     def __post_init__(self):
+        # Reject an unsupported package manager at construction; otherwise the
+        # Dockerfile install block silently falls through to the req_txt default
+        # and produces a Dockerfile that does not match the project.
+        if self.pkg_manager not in SUPPORTED_PKG_MANAGERS:
+            raise ValueError(
+                f"Unsupported pkg_manager {self.pkg_manager!r}; "
+                f"expected one of {', '.join(SUPPORTED_PKG_MANAGERS)}."
+            )
         # Celery's broker is the Redis addon URL (CELERY_BROKER_URL reads
         # CLOUDRON_REDIS_URL), and the manifest only declares the redis addon
         # when enable_redis is on. Celery without Redis renders a settings module
@@ -65,6 +78,8 @@ def _context(config):
         "app_id": config.app_id,
         "http_port": str(config.http_port),  # string-only context; see _ENGINE note
         "health_check_path": config.health_check_path,
+        # Booleans are localization-safe (Django's localize() short-circuits
+        # bool) and are only consumed by {% if %} tags, never emitted as {{ }}.
         "enable_redis": config.enable_redis,
         "enable_celery": config.enable_celery,
         "enable_sendmail": config.enable_sendmail,
@@ -75,15 +90,25 @@ def _context(config):
 
 def _render_template(filename, context):
     """Render a templates/<filename> file with the standalone engine."""
-    text = (TEMPLATES_DIR / filename).read_text()
-    return _ENGINE.from_string(text).render(Context(context))
+    text = (TEMPLATES_DIR / filename).read_text(encoding="utf-8")
+    # autoescape=False must be set on the Context, not just the Engine: a
+    # manually constructed Context defaults to autoescape=True regardless of the
+    # engine, which would HTML-escape variable values (e.g. "&&" -> "&amp;&amp;")
+    # and corrupt shell/config output.
+    return _ENGINE.from_string(text).render(Context(context, autoescape=False))
 
 
 def _write(path, contents, executable=False):
     """Write contents to path, creating parents, optionally chmod +x."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(contents)
+    # Force LF + UTF-8 so artifacts generated on Windows still run inside the
+    # Linux container (CRLF in start.sh/Dockerfile breaks the shebang). The
+    # open() form is used instead of Path.write_text(newline=...) because the
+    # newline kwarg only exists on write_text since Python 3.10 and the floor
+    # here is 3.9.
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(contents)
     if executable:
         mode = path.stat().st_mode
         path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
