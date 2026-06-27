@@ -1,5 +1,7 @@
 """Extends the core django-simple-deploy CLI with Cloudron options."""
 
+import re
+
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
 from django_simple_deploy.management.commands.utils.command_errors import (
     DSDCommandError,
@@ -7,6 +9,16 @@ from django_simple_deploy.management.commands.utils.command_errors import (
 
 from . import deploy_messages as platform_msgs
 from .plugin_config import plugin_config
+
+# location and server are interpolated into `cloudron` command strings, so
+# restrict them to the characters real subdomains and hostnames use; anything
+# else (whitespace, quotes, shell metacharacters) is rejected up front.
+_SAFE_CLI_VALUE = re.compile(r"^[A-Za-z0-9.-]+$")
+
+
+def _reject_unsafe(value, flag):
+    if value and not _SAFE_CLI_VALUE.match(value):
+        raise DSDCommandError(platform_msgs.unsafe_cli_value(flag, value))
 
 
 class PluginCLI:
@@ -100,6 +112,11 @@ def validate_cli(options):
     plugin_config.enable_sendmail = not options["no_sendmail"]
     plugin_config.enable_celery = options["celery"]
     plugin_config.enable_sso = options["sso"]
+
+    # location and server end up in `cloudron` command strings; reject values
+    # that could mis-split the command before anything is written.
+    _reject_unsafe(plugin_config.location, "--location")
+    _reject_unsafe(plugin_config.server, "--server")
 
     # Celery's broker is the Redis addon URL, so the combination is invalid.
     # Reject it here, at CLI-validation time and before any files are written,

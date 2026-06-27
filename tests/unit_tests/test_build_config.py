@@ -41,6 +41,44 @@ def test_build_config_respects_explicit_app_id():
     assert config.app_id == "io.omenapps.blog"
 
 
+def test_build_config_wraps_value_error_as_dsd_error():
+    # A non-identifier project name makes CloudronAppConfig.__post_init__ raise
+    # ValueError; the deployer must translate it into a clean DSDCommandError.
+    dsd_config.local_project_name = "my-project"
+    dsd_config.pkg_manager = "req_txt"
+    plugin_config.app_id = ""
+    with pytest.raises(DSDCommandError):
+        PlatformDeployer()._build_config()
+
+
+def test_validate_platform_unguarded_uses_location(monkeypatch):
+    # Drive the non-guarded validate path: stub the network/CLI checks so it runs
+    # offline, and confirm deployed_project_name comes from plugin_config.location.
+    dsd_config.unit_testing = False
+    dsd_config.deployed_project_name = "fallback"
+    plugin_config.location = "blog"
+    monkeypatch.setattr(pd.cloudron_cli, "check_installed", lambda: None)
+    monkeypatch.setattr(pd.cloudron_cli, "check_authenticated", lambda: None)
+    monkeypatch.setattr(pd.plugin_utils, "check_settings", lambda *a, **k: None)
+
+    deployer = PlatformDeployer()
+    deployer._validate_platform()
+    assert deployer.deployed_project_name == "blog"
+
+
+def test_validate_platform_unguarded_falls_back_to_deployed_name(monkeypatch):
+    dsd_config.unit_testing = False
+    dsd_config.deployed_project_name = "fallback"
+    plugin_config.location = ""
+    monkeypatch.setattr(pd.cloudron_cli, "check_installed", lambda: None)
+    monkeypatch.setattr(pd.cloudron_cli, "check_authenticated", lambda: None)
+    monkeypatch.setattr(pd.plugin_utils, "check_settings", lambda *a, **k: None)
+
+    deployer = PlatformDeployer()
+    deployer._validate_platform()
+    assert deployer.deployed_project_name == "fallback"
+
+
 def test_validate_platform_under_guard_sets_name():
     dsd_config.unit_testing = True
     dsd_config.deployed_project_name = "blog"

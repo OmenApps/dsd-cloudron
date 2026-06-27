@@ -56,6 +56,20 @@ under DEBUG=False; re-run with --health-check-path pointing at a 2xx route.
 """
 
 
+def unsafe_cli_value(flag, value):
+    """Rejection message for a CLI value that is unsafe to interpolate.
+
+    location and server are spliced into `cloudron` command strings, so an
+    unexpected character (whitespace, a quote, a shell metacharacter) could
+    mis-split the command or crash the argument parser. Restrict them to the
+    characters real subdomains and hostnames use.
+    """
+    return (
+        f"\nThe value for {flag} ({value!r}) contains characters that are not "
+        "allowed. Use only letters, digits, dots, and hyphens.\n"
+    )
+
+
 def followup_notes(config):
     """Guidance for the app-intrusive toggles, appended to the success message.
 

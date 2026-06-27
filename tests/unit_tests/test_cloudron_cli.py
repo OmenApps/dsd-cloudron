@@ -12,9 +12,17 @@ from django_simple_deploy.management.commands.utils.command_errors import (
 )
 
 
-def test_guard_makes_wrappers_noop():
+def test_guard_makes_wrappers_noop(monkeypatch):
     dsd_config.unit_testing = True
-    # These must not call subprocess and must not raise.
+
+    # Bomb both subprocess paths so the test proves the guard returns before any
+    # shell-out, regardless of whether the cloudron CLI exists on this machine.
+    def _no_subprocess(cmd, **kwargs):
+        raise AssertionError(f"subprocess escaped the unit_testing guard: {cmd!r}")
+
+    monkeypatch.setattr(cloudron_cli.plugin_utils, "run_quick_command", _no_subprocess)
+    monkeypatch.setattr(cloudron_cli.plugin_utils, "run_slow_command", _no_subprocess)
+
     cloudron_cli.check_installed()
     cloudron_cli.check_authenticated()
     config = CloudronAppConfig(project_name="blog", app_id="com.example.blog")
@@ -109,3 +117,23 @@ def test_check_authenticated_raises_when_logged_out(monkeypatch):
     )
     with pytest.raises(DSDCommandError):
         cloudron_cli.check_authenticated()
+
+
+def test_check_authenticated_succeeds_when_logged_in(monkeypatch):
+    dsd_config.unit_testing = False
+    monkeypatch.setattr(
+        cloudron_cli.plugin_utils,
+        "run_quick_command",
+        lambda cmd, **kwargs: SimpleNamespace(returncode=0),
+    )
+    cloudron_cli.check_authenticated()  # must not raise
+
+
+def test_check_installed_succeeds_on_zero_exit(monkeypatch):
+    dsd_config.unit_testing = False
+    monkeypatch.setattr(
+        cloudron_cli.plugin_utils,
+        "run_quick_command",
+        lambda cmd, **kwargs: SimpleNamespace(returncode=0),
+    )
+    cloudron_cli.check_installed()  # must not raise

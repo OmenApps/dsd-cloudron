@@ -89,6 +89,27 @@ def test_validate_cli_accepts_location_with_automate_all():
     assert plugin_config.location == "blog"
 
 
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("location", "my blog"),
+        ("location", 'bad"name'),
+        ("location", "a;rm -rf"),
+        ("server", "my host.com"),
+        ("server", "host`whoami`"),
+    ],
+)
+def test_validate_cli_rejects_unsafe_location_and_server(field, value):
+    with pytest.raises(DSDCommandError):
+        cli.validate_cli(_options(**{field: value}))
+
+
+def test_validate_cli_accepts_normal_location_and_server():
+    cli.validate_cli(_options(location="my-blog", server="my.example.com"))
+    assert plugin_config.location == "my-blog"
+    assert plugin_config.server == "my.example.com"
+
+
 def test_parser_registration_adds_flags():
     parser = argparse.ArgumentParser()
     cli.PluginCLI(parser)
