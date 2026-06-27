@@ -1,0 +1,11 @@
+# Specs and plans are kept locally and never committed (project convention).
+docs/superpowers/specs/
+docs/superpowers/plans/
+
+# Local virtual environment and Python build artifacts.
+.venv/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+build/
+dist/

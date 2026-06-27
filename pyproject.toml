@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsd-cloudron"
+version = "0.1.0"
+description = "A plugin for django-simple-deploy, supporting deployments to Cloudron."
+readme = "README.md"
+authors = [
+    { name = "Jack Linke", email = "jacklinke@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django :: 4.2",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+]
+keywords = ["django", "deployment", "cloudron"]
+requires-python = ">=3.9"
+dependencies = [
+    "django>=4.2",
+    "pluggy>=1.5.0",
+    "django-simple-deploy>=0.9.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.1.0",
+    "build>=1.2.1",
+    "pytest>=8.3.0",
+    "twine>=5.1.1",
+]
+
+[project.urls]
+"GitHub" = "https://github.com/omenapps/dsd-cloudron"
+
+[tool.setuptools]
+packages = [
+    "dsd_cloudron",
+    "dsd_cloudron.templates",
+]
+include-package-data = true
