@@ -9,10 +9,6 @@ The --automate-all flag means the deploy command will:
 - Run `cloudron install` to build the image on your Cloudron server and install the app.
 """
 
-cancel_cloudron = """
-Okay, cancelling Cloudron configuration and deployment.
-"""
-
 cli_not_installed = """
 The `cloudron` CLI does not appear to be installed.
 Install it with:
@@ -54,6 +50,20 @@ failed its health check, or the build itself failed. Check the output above and
 `cloudron logs`. A common cause is healthCheckPath returning a non-2xx response
 under DEBUG=False; re-run with --health-check-path pointing at a 2xx route.
 """
+
+
+def partial_write_failed(error):
+    """Abort message when writing an artifact into the project fails midway.
+
+    render_all is not transactional, so a filesystem error (permission denied,
+    read-only path, disk full) can leave some files written and others not.
+    """
+    return (
+        f"\nFailed while writing Cloudron files into your project: {error}\n"
+        "Your project may be partially modified. Fix the cause (for example a "
+        "permissions or disk-space problem) and re-run the deploy; pass "
+        "--force-overwrite to regenerate files that were already written.\n"
+    )
 
 
 def unsafe_cli_value(flag, value):

@@ -79,6 +79,23 @@ def test_validate_platform_unguarded_falls_back_to_deployed_name(monkeypatch):
     assert deployer.deployed_project_name == "fallback"
 
 
+def test_deploy_wraps_filesystem_error_as_dsd_error(monkeypatch, tmp_path):
+    # A non-transactional write failure mid-deploy must abort cleanly, not with a
+    # raw OSError traceback.
+    dsd_config.unit_testing = True
+    dsd_config.deployed_project_name = "blog"
+    dsd_config.local_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    dsd_config.project_root = tmp_path
+
+    def boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pd.packaging, "render_all", boom)
+    with pytest.raises(DSDCommandError):
+        PlatformDeployer().deploy()
+
+
 def test_validate_platform_under_guard_sets_name():
     dsd_config.unit_testing = True
     dsd_config.deployed_project_name = "blog"

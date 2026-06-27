@@ -38,7 +38,7 @@ def test_conclude_commits_and_installs(monkeypatch):
         pd.plugin_utils, "commit_changes", lambda: calls.append("commit")
     )
 
-    def fake_install(config, location):
+    def fake_install(location):
         calls.append("install")
         return ""  # mirror the real install(), which returns "" (no scraped URL)
 
@@ -90,6 +90,17 @@ def test_success_message_lists_changes(monkeypatch):
     assert "Changes made to your project" in blob
     assert "django-redis" in blob
     assert "postgresql" in blob
+
+
+def test_success_message_mentions_log_when_logging_on(monkeypatch):
+    written = []
+    monkeypatch.setattr(
+        pd.plugin_utils, "write_output", lambda msg: written.append(msg)
+    )
+    dsd_config.automate_all = False
+    dsd_config.log_output = True
+    _deployer()._show_success_message()
+    assert any("dsd_logs" in m for m in written)
 
 
 def test_success_message_includes_followup_notes(monkeypatch):

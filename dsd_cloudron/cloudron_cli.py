@@ -50,31 +50,23 @@ def check_authenticated():
     """Verify we are logged in to a Cloudron server."""
     if dsd_config.unit_testing:
         return
-    cmd = "cloudron list"
-    flags = _global_flags()
-    if flags:
-        cmd = f"{cmd} {flags}"
+    cmd = f"cloudron list {_global_flags()}".rstrip()
     output = plugin_utils.run_quick_command(cmd)
     if output.returncode != 0:
         raise DSDCommandError(platform_msgs.cli_logged_out)
 
 
-def install(config, location):
-    """Build on the server and install the app.
+def install(location):
+    """Build on the server and install the app at `location`.
 
-    `config` is accepted for symmetry and future use; the memory limit travels in
-    CloudronManifest.json, so no -m flag is needed here. Returns the deployed URL
-    when it is known, otherwise "". The build streams through run_slow_command,
-    which returns None and raises CalledProcessError on a nonzero exit - so the
-    URL is never scraped from its return value (that would crash: None has no
-    .stdout). A nonzero exit is wrapped as a clean DSDCommandError.
+    The memory limit travels in CloudronManifest.json, so no -m flag is needed.
+    Returns "": the deployed URL is not scraped from the build output. The build
+    streams through run_slow_command, which returns None and raises
+    CalledProcessError on a nonzero exit, wrapped here as a clean DSDCommandError.
     """
     if dsd_config.unit_testing:
         return ""
-    cmd = f"cloudron install -l {location}"
-    flags = _global_flags()
-    if flags:
-        cmd = f"{cmd} {flags}"
+    cmd = f"cloudron install -l {location} {_global_flags()}".rstrip()
     try:
         plugin_utils.run_slow_command(cmd)
     except subprocess.CalledProcessError as error:

@@ -12,8 +12,10 @@ from .plugin_config import plugin_config
 
 # location and server are interpolated into `cloudron` command strings, so
 # restrict them to the characters real subdomains and hostnames use; anything
-# else (whitespace, quotes, shell metacharacters) is rejected up front.
-_SAFE_CLI_VALUE = re.compile(r"^[A-Za-z0-9.-]+$")
+# else (whitespace, quotes, shell metacharacters) is rejected up front. The
+# value must start with an alphanumeric so it cannot be read as a CLI flag
+# (e.g. a leading "-" turning the value into an option to `cloudron`).
+_SAFE_CLI_VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*$")
 
 
 def _reject_unsafe(value, flag):

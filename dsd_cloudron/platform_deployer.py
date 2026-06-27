@@ -32,9 +32,16 @@ class PlatformDeployer:
 
         self._validate_platform()
         self.config = self._build_config()
-        self._add_cloudron_artifacts()
-        self._add_celery_app()
-        self._modify_settings()
+        # render_all is not transactional and _add_celery_app/_modify_settings
+        # edit files in place, so a filesystem error mid-write would otherwise
+        # surface as a raw traceback with the project left partially modified.
+        # Translate it into a clean abort that says so.
+        try:
+            self._add_cloudron_artifacts()
+            self._add_celery_app()
+            self._modify_settings()
+        except OSError as error:
+            raise DSDCommandError(platform_msgs.partial_write_failed(error)) from error
         self._add_requirements()
         self._conclude_automate_all()
         self._show_success_message()
@@ -87,7 +94,7 @@ class PlatformDeployer:
         except ValueError as error:
             raise DSDCommandError(str(error)) from error
 
-    # --- Steps implemented in later tasks ---
+    # --- Artifact rendering and project edits ---
 
     def _add_cloudron_artifacts(self):
         result = packaging.render_all(
@@ -106,16 +113,13 @@ class PlatformDeployer:
             )
 
     def _add_celery_app(self):
-        # Gate on self.config (the post-_build_config source render_all and the
-        # supervisor confs also read). render_all already wrote <project>/celery.py
-        # (in _add_cloudron_artifacts); here we only load it from the package
-        # __init__ so Django picks the Celery app up on startup. That edits the
-        # user's existing __init__.py, so it stays in the deployer rather than the
-        # shared packaging core. Only the import line is appended: executing it at
-        # package import is what creates the Celery app, and celery_app is then a
-        # package attribute regardless. We deliberately do not write an __all__,
-        # which would silently narrow the user's existing `from <project> import *`
-        # surface and is not needed for Celery to discover the app.
+        # render_all wrote <project>/celery.py; here we load it from the package
+        # __init__ so Django picks the Celery app up on startup. This edits the
+        # user's existing __init__.py (a retrofit-specific mutation), so it lives
+        # in the deployer, not the shared packaging core. We append only the
+        # import line and deliberately write no __all__: that would silently
+        # narrow the user's `from <project> import *` surface and is not needed
+        # for Celery to find the app.
         if not self.config.enable_celery:
             return
         root = dsd_config.project_root
@@ -166,7 +170,7 @@ class PlatformDeployer:
         plugin_utils.commit_changes()
         # install() streams the build, raises a clean DSDCommandError on failure,
         # and returns "" (the URL is not scraped from the slow-command output).
-        self.deployed_url = cloudron_cli.install(self.config, plugin_config.location)
+        self.deployed_url = cloudron_cli.install(plugin_config.location)
 
     def _show_success_message(self):
         # Branch on automate_all, not on deployed_url: the deployed URL is not
@@ -175,7 +179,9 @@ class PlatformDeployer:
         if dsd_config.automate_all:
             msg = platform_msgs.success_msg_automate_all(self.deployed_url)
         else:
-            msg = platform_msgs.success_msg(self.config, plugin_config.location)
+            msg = platform_msgs.success_msg(
+                self.config, plugin_config.location, log_output=dsd_config.log_output
+            )
         summary = platform_msgs.changes_summary(self.config, self._added_requirements)
         msg = f"{msg}\n{summary}\n"
         notes = platform_msgs.followup_notes(self.config)

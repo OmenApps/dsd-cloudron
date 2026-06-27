@@ -4,7 +4,6 @@ from types import SimpleNamespace
 import pytest
 
 from dsd_cloudron import cloudron_cli
-from dsd_cloudron.packaging import CloudronAppConfig
 from dsd_cloudron.plugin_config import plugin_config
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
 from django_simple_deploy.management.commands.utils.command_errors import (
@@ -25,8 +24,7 @@ def test_guard_makes_wrappers_noop(monkeypatch):
 
     cloudron_cli.check_installed()
     cloudron_cli.check_authenticated()
-    config = CloudronAppConfig(project_name="blog", app_id="com.example.blog")
-    assert cloudron_cli.install(config, "blog") == ""
+    assert cloudron_cli.install("blog") == ""
 
 
 def test_global_flags_built_from_config():
@@ -53,8 +51,7 @@ def test_install_runs_slow_command_and_returns_empty(monkeypatch):
         "run_slow_command",
         lambda cmd, **kwargs: calls.append(cmd),
     )
-    config = CloudronAppConfig(project_name="blog", app_id="com.example.blog")
-    assert cloudron_cli.install(config, "blog") == ""
+    assert cloudron_cli.install("blog") == ""
     assert calls[0].startswith("cloudron install -l blog")
 
 
@@ -68,8 +65,7 @@ def test_install_includes_global_flags(monkeypatch):
         "run_slow_command",
         lambda cmd, **kwargs: calls.append(cmd),
     )
-    config = CloudronAppConfig(project_name="blog", app_id="com.example.blog")
-    cloudron_cli.install(config, "blog")
+    cloudron_cli.install("blog")
     assert "--server my.example.com" in calls[0]
     assert "--allow-selfsigned" in calls[0]
 
@@ -81,9 +77,8 @@ def test_install_wraps_failure_in_dsd_error(monkeypatch):
         raise subprocess.CalledProcessError(1, cmd)
 
     monkeypatch.setattr(cloudron_cli.plugin_utils, "run_slow_command", boom)
-    config = CloudronAppConfig(project_name="blog", app_id="com.example.blog")
     with pytest.raises(DSDCommandError):
-        cloudron_cli.install(config, "blog")
+        cloudron_cli.install("blog")
 
 
 def test_check_installed_reports_missing_cli(monkeypatch):

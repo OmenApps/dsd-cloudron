@@ -95,8 +95,10 @@ def test_validate_cli_accepts_location_with_automate_all():
         ("location", "my blog"),
         ("location", 'bad"name'),
         ("location", "a;rm -rf"),
+        ("location", "-rf"),  # leading hyphen could be read as a CLI flag
         ("server", "my host.com"),
         ("server", "host`whoami`"),
+        ("server", "--allow-selfsigned"),
     ],
 )
 def test_validate_cli_rejects_unsafe_location_and_server(field, value):
