@@ -108,9 +108,18 @@ def _render_template(filename, context):
     return _ENGINE.from_string(text).render(Context(context, autoescape=False))
 
 
-def _write(path, contents, executable=False):
-    """Write contents to path, creating parents, optionally chmod +x."""
+@dataclass
+class RenderResult:
+    written: list
+    skipped: list
+
+
+def _write(path, contents, result, force, executable=False):
+    """Write contents unless the file exists and force is False; record outcome."""
     path = Path(path)
+    if path.exists() and not force:
+        result.skipped.append(path)
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     # Force LF + UTF-8 so artifacts generated on Windows still run inside the
     # Linux container (CRLF in start.sh/Dockerfile breaks the shebang). The
@@ -120,8 +129,8 @@ def _write(path, contents, executable=False):
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(contents)
     if executable:
-        mode = path.stat().st_mode
-        path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    result.written.append(path)
 
 
 def _pip_install_block(pkg_manager):
@@ -200,6 +209,37 @@ def render_readme(config):
 def render_dockerignore(config):
     """Render the .dockerignore (static text; config reserved for future use)."""
     return _render_template("dockerignore", _context(config))
+
+
+def render_all(config, target_dir, force=False):
+    """Write the full Cloudron artifact set into target_dir."""
+    target_dir = Path(target_dir)
+    pkg_dir = target_dir / config.project_name
+    supervisor_dir = target_dir / "supervisor"
+    result = RenderResult(written=[], skipped=[])
+
+    _write(target_dir / "CloudronManifest.json", render_manifest(config), result, force)
+    _write(target_dir / "Dockerfile", render_dockerfile(config), result, force)
+    _write(
+        target_dir / "start.sh",
+        render_start_sh(config),
+        result,
+        force,
+        executable=True,
+    )
+    _write(target_dir / "nginx.conf", render_nginx_conf(config), result, force)
+    _write(target_dir / ".dockerignore", render_dockerignore(config), result, force)
+    _write(target_dir / "README-cloudron.md", render_readme(config), result, force)
+    _write(
+        pkg_dir / "cloudron_settings.py",
+        render_cloudron_settings(config),
+        result,
+        force,
+    )
+    for name, contents in render_supervisor_confs(config).items():
+        _write(supervisor_dir / name, contents, result, force)
+
+    return result
 
 
 def render_manifest(config):
