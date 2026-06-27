@@ -25,6 +25,8 @@ def test_secret_key_written_atomically():
     text = _start()
     assert "[[ ! -s /app/data/.secret_key ]]" in text
     assert "mv /app/data/.secret_key.tmp /app/data/.secret_key" in text
+    # The secret file must not be world/group readable.
+    assert "chmod 600 /app/data/.secret_key.tmp" in text
 
 
 def test_activates_virtualenv_before_management_commands():

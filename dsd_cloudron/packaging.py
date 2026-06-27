@@ -2,7 +2,7 @@
 
 Single source of truth for the generated Cloudron artifact set. Pure render
 functions: no network, no `cloudron` CLI, no django-simple-deploy core. Both the
-retrofit deployer (M1) and the greenfield scaffolder (M2) call render_all().
+retrofit deployer and the greenfield scaffolder call render_all().
 """
 
 import json
@@ -134,8 +134,8 @@ def _write(path, contents, result, force, executable=False):
 def _pip_install_block(pkg_manager):
     """The Dockerfile dependency-install snippet for the chosen package manager.
 
-    The non-req_txt blocks are first-draft and are validated against a real
-    Cloudron build in this milestone's manual checkpoint (Task 11).
+    The non-req_txt blocks are first-draft and need validating against a real
+    Cloudron build by hand before release.
     """
     if pkg_manager == "poetry":
         return (
@@ -207,43 +207,6 @@ def render_readme(config):
 def render_dockerignore(config):
     """Render the .dockerignore (static text; config reserved for future use)."""
     return _render_template("dockerignore", _context(config))
-
-
-def render_all(config, target_dir, force=False):
-    """Write the full Cloudron artifact set into target_dir.
-
-    Not transactional: files are written one at a time, so an I/O failure
-    partway through can leave target_dir partially rendered. Callers (the M1
-    deployer, the M2 scaffolder) own recovery; the returned RenderResult lists
-    exactly what was written and what was skipped.
-    """
-    target_dir = Path(target_dir)
-    pkg_dir = target_dir / config.project_name
-    supervisor_dir = target_dir / "supervisor"
-    result = RenderResult(written=[], skipped=[])
-
-    _write(target_dir / "CloudronManifest.json", render_manifest(config), result, force)
-    _write(target_dir / "Dockerfile", render_dockerfile(config), result, force)
-    _write(
-        target_dir / "start.sh",
-        render_start_sh(config),
-        result,
-        force,
-        executable=True,
-    )
-    _write(target_dir / "nginx.conf", render_nginx_conf(config), result, force)
-    _write(target_dir / ".dockerignore", render_dockerignore(config), result, force)
-    _write(target_dir / "README-cloudron.md", render_readme(config), result, force)
-    _write(
-        pkg_dir / "cloudron_settings.py",
-        render_cloudron_settings(config),
-        result,
-        force,
-    )
-    for name, contents in render_supervisor_confs(config).items():
-        _write(supervisor_dir / name, contents, result, force)
-
-    return result
 
 
 def render_manifest(config):
@@ -386,3 +349,40 @@ def render_cloudron_settings(config):
     )
 
     return "\n".join(blocks)
+
+
+def render_all(config, target_dir, force=False):
+    """Write the full Cloudron artifact set into target_dir.
+
+    Not transactional: files are written one at a time, so an I/O failure
+    partway through can leave target_dir partially rendered. Callers (the
+    deployer, the scaffolder) own recovery; the returned RenderResult lists
+    exactly what was written and what was skipped.
+    """
+    target_dir = Path(target_dir)
+    pkg_dir = target_dir / config.project_name
+    supervisor_dir = target_dir / "supervisor"
+    result = RenderResult(written=[], skipped=[])
+
+    _write(target_dir / "CloudronManifest.json", render_manifest(config), result, force)
+    _write(target_dir / "Dockerfile", render_dockerfile(config), result, force)
+    _write(
+        target_dir / "start.sh",
+        render_start_sh(config),
+        result,
+        force,
+        executable=True,
+    )
+    _write(target_dir / "nginx.conf", render_nginx_conf(config), result, force)
+    _write(target_dir / ".dockerignore", render_dockerignore(config), result, force)
+    _write(target_dir / "README-cloudron.md", render_readme(config), result, force)
+    _write(
+        pkg_dir / "cloudron_settings.py",
+        render_cloudron_settings(config),
+        result,
+        force,
+    )
+    for name, contents in render_supervisor_confs(config).items():
+        _write(supervisor_dir / name, contents, result, force)
+
+    return result

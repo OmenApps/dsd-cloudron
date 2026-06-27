@@ -14,6 +14,7 @@ echo "==> Ensuring persistent secret key"
 # volume, which would brick every later start with an empty SECRET_KEY.
 if [[ ! -s /app/data/.secret_key ]]; then
     python3 -c "import secrets; print(secrets.token_urlsafe(64))" > /app/data/.secret_key.tmp
+    chmod 600 /app/data/.secret_key.tmp
     mv /app/data/.secret_key.tmp /app/data/.secret_key
 fi
 export SECRET_KEY="$(cat /app/data/.secret_key)"
