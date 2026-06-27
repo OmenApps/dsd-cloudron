@@ -175,6 +175,23 @@ def render_nginx_conf(config):
     return _render_template("nginx.conf", _context(config))
 
 
+def render_supervisor_confs(config):
+    """Return {output_filename: contents} for the enabled supervisor programs."""
+    context = _context(config)
+    confs = {
+        "gunicorn.conf": _render_template("supervisor_gunicorn.conf", context),
+        "nginx.conf": _render_template("supervisor_nginx.conf", context),
+    }
+    if config.enable_celery:
+        confs["celery-worker.conf"] = _render_template(
+            "supervisor_celery_worker.conf", context
+        )
+        confs["celery-beat.conf"] = _render_template(
+            "supervisor_celery_beat.conf", context
+        )
+    return confs
+
+
 def render_manifest(config):
     """Build CloudronManifest.json as a dict and serialize it."""
     addons = {
