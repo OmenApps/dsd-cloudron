@@ -19,5 +19,4 @@ def test_cli_derived_defaults():
     assert config.enable_celery is False
     assert config.enable_sso is False
     assert config.server == ""
-    assert config.token == ""
     assert config.allow_selfsigned is False

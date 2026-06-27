@@ -2,7 +2,6 @@
 
 from textwrap import dedent
 
-
 confirm_automate_all = """
 The --automate-all flag means the deploy command will:
 - Configure your project for deployment to Cloudron.
@@ -77,12 +76,15 @@ def followup_notes(config):
             "Add django.contrib.sites, allauth, allauth.account, "
             "allauth.socialaccount, and "
             "allauth.socialaccount.providers.openid_connect to INSTALLED_APPS; set "
-            "SITE_ID; add allauth.account.auth_backends.AuthenticationBackend to "
-            "AUTHENTICATION_BACKENDS; add the allauth account middleware; include "
+            "SITE_ID; set AUTHENTICATION_BACKENDS to keep "
+            "django.contrib.auth.backends.ModelBackend and add "
+            "allauth.account.auth_backends.AuthenticationBackend; add "
+            "allauth.account.middleware.AccountMiddleware to MIDDLEWARE after "
+            "django.contrib.auth.middleware.AuthenticationMiddleware; include "
             "allauth.urls; and run migrate. Automated SSO wiring is planned for a "
             "later release."
         )
-    return "\n".join(notes)
+    return "\n\n".join(notes)
 
 
 def changes_summary(config, added_requirements):
@@ -111,8 +113,7 @@ def changes_summary(config, added_requirements):
 def success_msg(config, location, log_output=""):
     """Config-only success message (no --automate-all)."""
     location_hint = location or "<subdomain>"
-    msg = dedent(
-        f"""
+    msg = dedent(f"""
         --- Your project is now configured for deployment to Cloudron ---
 
         To deploy:
@@ -130,8 +131,7 @@ def success_msg(config, location, log_output=""):
 
         A default admin account will be created on the first install (admin /
         changeme123). Change the password immediately after first login.
-        """
-    )
+        """)
     if log_output:
         msg += (
             "\n- You can find a full record of this configuration in the "
@@ -147,13 +147,11 @@ def success_msg_automate_all(deployed_url):
     default), so fall back to telling the user how to find the running app.
     """
     where = deployed_url or "(run `cloudron list` or open your Cloudron dashboard)"
-    return dedent(
-        f"""
+    return dedent(f"""
         --- Your project has been deployed to Cloudron ---
 
         It should be available at:
             {where}
 
         Default admin account: admin / changeme123 - change it immediately.
-        """
-    )
+        """)

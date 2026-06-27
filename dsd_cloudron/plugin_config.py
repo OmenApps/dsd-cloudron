@@ -27,7 +27,6 @@ class PluginConfig:
         self.enable_celery = False
         self.enable_sso = False
         self.server = ""
-        self.token = ""
         self.allow_selfsigned = False
 
 

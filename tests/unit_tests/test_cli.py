@@ -1,7 +1,13 @@
+import argparse
+
 import pytest
 
 from dsd_cloudron import cli
 from dsd_cloudron.plugin_config import plugin_config
+from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
+from django_simple_deploy.management.commands.utils.command_errors import (
+    DSDCommandError,
+)
 
 
 def _options(**overrides):
@@ -12,7 +18,6 @@ def _options(**overrides):
         "health_check_path": "/",
         "force_overwrite": False,
         "server": "",
-        "token": "",
         "allow_selfsigned": False,
         "no_redis": False,
         "no_sendmail": False,
@@ -24,15 +29,35 @@ def _options(**overrides):
 
 
 def test_validate_cli_writes_defaults_onto_config():
-    # Reset to a clean state for assertions.
-    plugin_config.enable_redis = True
-    plugin_config.enable_sendmail = True
     cli.validate_cli(_options())
     assert plugin_config.location == "blog"
     assert plugin_config.enable_redis is True
     assert plugin_config.enable_sendmail is True
     assert plugin_config.enable_celery is False
     assert plugin_config.enable_sso is False
+
+
+def test_validate_cli_maps_all_passthrough_fields():
+    # Pass distinctive non-default values so a mis-keyed mapping (e.g. reading
+    # options["app-id"]) would surface here.
+    cli.validate_cli(
+        _options(
+            location="news",
+            app_id="io.omenapps.news",
+            memory_limit=2147483648,
+            health_check_path="/healthz/",
+            force_overwrite=True,
+            server="my.example.com",
+            allow_selfsigned=True,
+        )
+    )
+    assert plugin_config.location == "news"
+    assert plugin_config.app_id == "io.omenapps.news"
+    assert plugin_config.memory_limit == 2147483648
+    assert plugin_config.health_check_path == "/healthz/"
+    assert plugin_config.force_overwrite is True
+    assert plugin_config.server == "my.example.com"
+    assert plugin_config.allow_selfsigned is True
 
 
 def test_validate_cli_inverts_opt_out_flags():
@@ -48,19 +73,28 @@ def test_validate_cli_sets_app_intrusive_flags():
 
 
 def test_validate_cli_rejects_celery_without_redis():
-    from django_simple_deploy.management.commands.utils.command_errors import (
-        DSDCommandError,
-    )
-
     with pytest.raises(DSDCommandError):
         cli.validate_cli(_options(celery=True, no_redis=True))
 
 
-def test_parser_registration_adds_flags():
-    import argparse
+def test_validate_cli_rejects_missing_location_with_automate_all():
+    dsd_config.automate_all = True
+    with pytest.raises(DSDCommandError):
+        cli.validate_cli(_options(location=""))
 
+
+def test_validate_cli_accepts_location_with_automate_all():
+    dsd_config.automate_all = True
+    cli.validate_cli(_options(location="blog"))  # must not raise
+    assert plugin_config.location == "blog"
+
+
+def test_parser_registration_adds_flags():
     parser = argparse.ArgumentParser()
     cli.PluginCLI(parser)
     text = parser.format_help()
     for flag in ["--location", "--no-redis", "--celery", "--sso", "--force-overwrite"]:
         assert flag in text
+    # The API token is intentionally not a CLI flag (it would be logged to
+    # dsd_logs and shell history); auth comes from the `cloudron login` session.
+    assert "--token" not in text

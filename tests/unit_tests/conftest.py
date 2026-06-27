@@ -14,7 +14,6 @@ import pytest
 from dsd_cloudron.plugin_config import PluginConfig, plugin_config
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
 
-
 _DSD_ATTRS = (
     "unit_testing",
     "automate_all",
@@ -24,6 +23,15 @@ _DSD_ATTRS = (
     "project_root",
     "settings_path",
     "stdout",
+    # Not mutated by the current tests, but carried so a future deployer test
+    # that touches one of these cannot leak it into the next test.
+    "log_output",
+    "e2e_testing",
+    "region",
+    "use_shell",
+    "on_windows",
+    "on_macos",
+    "version",
 )
 
 
