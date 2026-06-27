@@ -57,6 +57,14 @@ def test_config_celery_with_redis_succeeds():
     assert config.enable_redis is True
 
 
+def test_config_rejects_invalid_project_name():
+    # project_name is spliced into generated Python and templates, so a name
+    # that is not a valid identifier (quote, space, dot, dash) must be rejected.
+    for bad in ('blog"; import os', "my blog", "com.example.blog", "my-blog"):
+        with pytest.raises(ValueError):
+            CloudronAppConfig(project_name=bad, app_id="com.example.blog")
+
+
 def test_config_rejects_unknown_pkg_manager():
     with pytest.raises(ValueError):
         CloudronAppConfig(

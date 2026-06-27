@@ -24,7 +24,14 @@ def test_copies_runtime_artifacts():
     assert "COPY supervisor/ /etc/supervisor/conf.d/" in text
     assert "COPY nginx.conf /app/pkg/nginx.conf" in text
     assert "COPY start.sh /app/pkg/start.sh" in text
+    assert "RUN chmod +x /app/pkg/start.sh" in text
     assert 'CMD ["/app/pkg/start.sh"]' in text
+
+
+def test_no_unrendered_template_sentinel():
+    # The engine's string_if_invalid sentinel must never appear in output; its
+    # presence means a template referenced an undefined context variable.
+    assert "INVALID_TEMPLATE_VAR" not in _dockerfile()
 
 
 def test_req_txt_install_block():

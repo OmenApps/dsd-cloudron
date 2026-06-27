@@ -45,8 +45,17 @@ def test_manifest_sso_adds_oidc():
 
 def test_manifest_checklist_and_message():
     m = _manifest()
-    assert m["checklist"]["change-default-password"]["message"]
+    assert (
+        m["checklist"]["change-default-password"]["message"]
+        == "Change the default admin password"
+    )
     assert "admin" in m["postInstallMessage"]
+
+
+def test_manifest_version_and_author_passthrough():
+    m = _manifest(version="2.1.0", author="ACME Corp")
+    assert m["version"] == "2.1.0"
+    assert m["author"] == "ACME Corp"
 
 
 def test_manifest_is_valid_json_with_trailing_newline():

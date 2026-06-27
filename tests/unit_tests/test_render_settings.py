@@ -79,3 +79,53 @@ def test_settings_sso_conditional():
 def test_settings_custom_override_hook_last():
     text = _settings()
     assert "/app/data/custom_settings.py" in text
+    # The exec hook must be the final statement so operator overrides win.
+    assert text.rstrip().endswith("exec(_f.read())")
+
+
+def test_settings_execute_default_config(monkeypatch):
+    # ast.parse proves syntax; this proves semantics. Execute the generated
+    # module under a Cloudron-like environment and assert the bindings that
+    # matter actually land with the right values (a misnamed key or a block that
+    # escaped the ON_CLOUDRON gate would pass ast.parse but fail here).
+    env = {
+        "CLOUDRON_APP_ORIGIN": "https://blog.example.com",
+        "CLOUDRON_APP_DOMAIN": "blog.example.com",
+        "SECRET_KEY": "test-key",
+        "CLOUDRON_POSTGRESQL_DATABASE": "app",
+        "CLOUDRON_POSTGRESQL_USERNAME": "app",
+        "CLOUDRON_POSTGRESQL_PASSWORD": "pw",
+        "CLOUDRON_POSTGRESQL_HOST": "127.0.0.1",
+        "CLOUDRON_POSTGRESQL_PORT": "5432",
+        "CLOUDRON_REDIS_URL": "redis://127.0.0.1:6379/0",
+        "CLOUDRON_MAIL_SMTP_SERVER": "mail",
+        "CLOUDRON_MAIL_SMTP_PORT": "25",
+        "CLOUDRON_MAIL_SMTP_USERNAME": "app",
+        "CLOUDRON_MAIL_SMTP_PASSWORD": "pw",
+    }
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    namespace = {}
+    exec(compile(_settings(), "<cloudron_settings>", "exec"), namespace)
+
+    assert namespace["DEBUG"] is False
+    assert namespace["SECRET_KEY"] == "test-key"
+    assert namespace["ALLOWED_HOSTS"] == ["blog.example.com"]
+    assert namespace["STATIC_ROOT"] == "/run/blog/static"
+    assert (
+        namespace["DATABASES"]["default"]["ENGINE"] == "django.db.backends.postgresql"
+    )
+    assert namespace["CACHES"]["default"]["BACKEND"] == "django_redis.cache.RedisCache"
+    assert namespace["EMAIL_USE_TLS"] is False
+    assert namespace["EMAIL_USE_SSL"] is False
+
+
+def test_settings_inert_without_cloudron_origin(monkeypatch):
+    # Off Cloudron the whole block is gated out, so no overrides leak into a
+    # local dev or build environment.
+    monkeypatch.delenv("CLOUDRON_APP_ORIGIN", raising=False)
+    namespace = {}
+    exec(compile(_settings(), "<cloudron_settings>", "exec"), namespace)
+    assert "DEBUG" not in namespace
+    assert "DATABASES" not in namespace

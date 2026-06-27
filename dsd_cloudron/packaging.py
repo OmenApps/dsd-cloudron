@@ -50,6 +50,15 @@ class CloudronAppConfig:
     author: str = ""
 
     def __post_init__(self):
+        # project_name is spliced into generated Python (STATIC_ROOT) and into
+        # templates (the wsgi module path, socket/static paths). It is the Django
+        # project package, so it must be a valid Python identifier; rejecting
+        # anything else closes a code-injection / broken-output hole.
+        if not self.project_name.isidentifier():
+            raise ValueError(
+                f"project_name {self.project_name!r} is not a valid Python "
+                "identifier (it names the Django project package)."
+            )
         # Reject an unsupported package manager at construction; otherwise the
         # Dockerfile install block silently falls through to the req_txt default
         # and produces a Dockerfile that does not match the project.
@@ -212,7 +221,7 @@ def render_cloudron_settings(config):
         'if os.environ.get("CLOUDRON_APP_ORIGIN"):\n'
         "    DEBUG = False\n\n"
         '    SECRET_KEY = os.environ["SECRET_KEY"]\n\n'
-        '    ALLOWED_HOSTS = [os.environ.get("CLOUDRON_APP_DOMAIN", "")]\n'
+        '    ALLOWED_HOSTS = [os.environ["CLOUDRON_APP_DOMAIN"]]\n'
         '    CSRF_TRUSTED_ORIGINS = [os.environ["CLOUDRON_APP_ORIGIN"]]\n'
         '    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")\n'
     )
@@ -263,6 +272,7 @@ def render_cloudron_settings(config):
             '    EMAIL_HOST_USER = os.environ["CLOUDRON_MAIL_SMTP_USERNAME"]\n'
             '    EMAIL_HOST_PASSWORD = os.environ["CLOUDRON_MAIL_SMTP_PASSWORD"]\n'
             "    EMAIL_USE_TLS = False\n"
+            "    EMAIL_USE_SSL = False\n"
             '    DEFAULT_FROM_EMAIL = os.environ.get("CLOUDRON_MAIL_FROM", "")\n'
             "    SERVER_EMAIL = DEFAULT_FROM_EMAIL\n"
         )
@@ -288,7 +298,7 @@ def render_cloudron_settings(config):
     blocks.append(
         '    _custom_settings = "/app/data/custom_settings.py"\n'
         "    if os.path.exists(_custom_settings):\n"
-        "        with open(_custom_settings) as _f:\n"
+        '        with open(_custom_settings, encoding="utf-8") as _f:\n'
         "            exec(_f.read())\n"
     )
 
