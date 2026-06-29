@@ -351,6 +351,18 @@ def render_cloudron_settings(config):
     return "\n".join(blocks)
 
 
+def render_celery_app(config):
+    """Render the <project>/celery.py module the Celery programs import.
+
+    The worker/beat supervisor confs run `celery -A <project>`, which needs this
+    module to define `app`. Rendering it here (rather than in a deployer) keeps
+    the packaging core's Celery output self-contained, so the retrofit deployer
+    and the greenfield scaffolder share one definition that cannot drift from the
+    supervisor confs.
+    """
+    return _render_template("celery_app", _context(config))
+
+
 def render_all(config, target_dir, force=False):
     """Write the full Cloudron artifact set into target_dir.
 
@@ -382,6 +394,10 @@ def render_all(config, target_dir, force=False):
         result,
         force,
     )
+    # celery.py belongs to the project package and only exists when Celery is on;
+    # the worker/beat supervisor confs below import it.
+    if config.enable_celery:
+        _write(pkg_dir / "celery.py", render_celery_app(config), result, force)
     for name, contents in render_supervisor_confs(config).items():
         _write(supervisor_dir / name, contents, result, force)
 
