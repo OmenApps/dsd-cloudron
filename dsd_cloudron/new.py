@@ -5,10 +5,12 @@ then renders the deploy artifacts through the shared packaging core.
 """
 
 import argparse
+import keyword
 import re
 import sys
 from pathlib import Path
 
+from cookiecutter.exceptions import OutputDirExistsException
 from cookiecutter.main import cookiecutter
 
 from .packaging import CloudronAppConfig, render_all
@@ -75,11 +77,26 @@ def build_context(args):
     project to disk and then raising a raw ValueError from CloudronAppConfig.
     """
     slug = _slugify(args.project_name)
-    if not slug.isidentifier():
+    # isidentifier() alone is not enough: it accepts Python keywords ("class",
+    # "import", "for", ...), which would slug fine but make `import <slug>`
+    # a SyntaxError, breaking every generated module path. Django's own
+    # startproject rejects both, so we do too.
+    if not slug.isidentifier() or keyword.iskeyword(slug):
         _fail(
-            f"{args.project_name!r} does not reduce to a valid Python identifier "
-            f"(got {slug!r}); it names the Django project package. Start with a "
-            "letter and use letters, digits, spaces, or dashes."
+            f"{args.project_name!r} does not reduce to a usable Django project "
+            f"package name (got {slug!r}); it must be a valid Python identifier "
+            "that is not a reserved word. Start with a letter and use letters, "
+            "digits, spaces, or dashes."
+        )
+    # The slug also becomes the last label of the reverse-DNS app_id, which must
+    # start and end with an alphanumeric. A leading/trailing underscore is a legal
+    # identifier ("_foo", "foo_") but hyphenates to an invalid id ("com.example.-foo"),
+    # rejected only later at `cloudron install`. Reject it up front.
+    if slug.startswith("_") or slug.endswith("_"):
+        _fail(
+            f"{args.project_name!r} reduces to {slug!r}, which starts or ends with "
+            "an underscore; that yields an invalid Cloudron app id. Start and end "
+            "the name with a letter or digit."
         )
     # app_id is a Cloudron reverse-DNS id, which disallows underscores, so the
     # identifier slug is hyphenated for that segment only.
@@ -118,12 +135,17 @@ def config_from_context(context):
 def scaffold(args):
     """Render the project skeleton, then the Cloudron artifact set."""
     context = build_context(args)
-    project_dir = cookiecutter(
-        str(TEMPLATE_DIR),
-        no_input=True,
-        extra_context=context,
-        output_dir=args.output_dir,
-    )
+    try:
+        project_dir = cookiecutter(
+            str(TEMPLATE_DIR),
+            no_input=True,
+            extra_context=context,
+            output_dir=args.output_dir,
+        )
+    except OutputDirExistsException as exc:
+        # The common re-run case: honor the module's clean-failure promise instead
+        # of dumping a raw traceback when the target directory already exists.
+        _fail(str(exc))
     config = config_from_context(context)
     render_all(config, project_dir)
     return project_dir
