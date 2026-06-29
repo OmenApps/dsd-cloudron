@@ -1,0 +1,20 @@
+[project]
+name = "{{ cookiecutter.project_slug }}"
+version = "0.1.0"
+description = "{{ cookiecutter.description }}"
+authors = [
+    { name = "{{ cookiecutter.author_name }}", email = "{{ cookiecutter.author_email }}" },
+]
+requires-python = ">=3.9"
+dependencies = [
+    "django>=4.2",
+    "gunicorn",
+    "psycopg2-binary",
+{% if cookiecutter.use_redis == "yes" %}    "django-redis",
+{% endif %}{% if cookiecutter.use_celery == "yes" %}    "celery",
+{% endif %}{% if cookiecutter.use_sso == "yes" %}    "django-allauth[mfa]",
+{% endif %}{% if cookiecutter.use_htmx == "yes" %}    "django-htmx",
+    "crispy-bootstrap5",
+{% endif %}{% if cookiecutter.use_ninja == "yes" %}    "django-ninja",
+{% endif %}{% if cookiecutter.use_s3 == "yes" %}    "django-storages[boto3]",
+{% endif %}]

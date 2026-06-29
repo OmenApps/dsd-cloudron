@@ -1,0 +1,15 @@
+{
+    "project_name": "My Cloudron App",
+    "project_slug": "{{ cookiecutter.project_name.lower()|replace(' ', '_')|replace('-', '_')|replace('.', '_')|trim() }}",
+    "description": "A Django application on Cloudron",
+    "author_name": "Your Name",
+    "author_email": "you@example.com",
+    "app_id": "com.example.{{ cookiecutter.project_slug.replace('_', '-') }}",
+    "use_redis": ["yes", "no"],
+    "use_sendmail": ["yes", "no"],
+    "use_celery": ["no", "yes"],
+    "use_sso": ["no", "yes"],
+    "use_ninja": ["no", "yes"],
+    "use_htmx": ["no", "yes"],
+    "use_s3": ["no", "yes"]
+}
