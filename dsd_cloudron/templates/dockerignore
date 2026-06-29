@@ -9,3 +9,5 @@ b_env/
 db.sqlite3
 dsd_logs/
 .pytest_cache/
+docker-compose.yml
+Dockerfile.dev

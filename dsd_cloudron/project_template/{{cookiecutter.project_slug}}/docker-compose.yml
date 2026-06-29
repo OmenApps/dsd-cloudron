@@ -1,0 +1,33 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: python manage.py runserver 0.0.0.0:8000
+    environment:
+      DEBUG: "True"
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: {{ cookiecutter.project_slug }}
+      POSTGRES_USER: {{ cookiecutter.project_slug }}
+      POSTGRES_PASSWORD: localdev
+{% if cookiecutter.use_redis == "yes" %}      REDIS_URL: redis://redis:6379/0
+{% endif %}    volumes:
+      - .:/app/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+{% if cookiecutter.use_redis == "yes" %}      - redis
+{% endif %}  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: {{ cookiecutter.project_slug }}
+      POSTGRES_USER: {{ cookiecutter.project_slug }}
+      POSTGRES_PASSWORD: localdev
+    ports:
+      - "5432:5432"
+{% if cookiecutter.use_redis == "yes" %}  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+{% endif %}
