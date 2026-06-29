@@ -18,7 +18,7 @@ from .packaging import CloudronAppConfig, render_all
 TEMPLATE_DIR = Path(__file__).parent / "project_template"
 
 # (flag dest, cookiecutter key, default "yes"/"no").
-# Infra defaults on; app-stack defaults off (section 6, lean).
+# Infra addons default on; app-stack toggles default off to stay lean.
 _TOGGLES = [
     ("redis", "use_redis", "yes"),
     ("sendmail", "use_sendmail", "yes"),
@@ -146,19 +146,28 @@ def scaffold(args):
         # The common re-run case: honor the module's clean-failure promise instead
         # of dumping a raw traceback when the target directory already exists.
         _fail(str(exc))
-    config = config_from_context(context)
-    render_all(config, project_dir)
+    try:
+        config = config_from_context(context)
+        render_all(config, project_dir)
+    except Exception as exc:
+        # cookiecutter already wrote the skeleton; if the deploy artifacts fail to
+        # render, the tree is half-built. Fail cleanly and name the directory to
+        # remove, instead of a raw traceback that also blocks a same-name retry.
+        _fail(
+            f"deploy artifacts failed to render into {project_dir!r}: {exc}. "
+            "Remove that directory before retrying."
+        )
     return project_dir
 
 
 def main(argv=None):
+    # argparse requires the "new" subcommand (the only one), so it exits before
+    # parse_args returns if it is missing; args.command is always "new" here.
     args = parse_args(argv)
-    if args.command == "new":
-        project_dir = scaffold(args)
-        print(f"Created {project_dir}")
-        print("Next: cd into it, then `cloudron install -l <subdomain>`.")
-        return 0
-    return 1
+    project_dir = scaffold(args)
+    print(f"Created {project_dir}")
+    print("Next: cd into it, then `cloudron install -l <subdomain>`.")
+    return 0
 
 
 if __name__ == "__main__":

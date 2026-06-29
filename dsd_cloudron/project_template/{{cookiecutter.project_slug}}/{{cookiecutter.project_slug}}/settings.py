@@ -160,5 +160,5 @@ if os.environ.get("AWS_STORAGE_BUCKET_NAME"):
 try:
     from .cloudron_settings import *  # noqa: F401,F403
 except ImportError as exc:
-    if not (exc.name and exc.name.endswith("cloudron_settings")):
+    if exc.name != f"{__package__}.cloudron_settings":
         raise
