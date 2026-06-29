@@ -12,7 +12,7 @@ dependencies = [
     "psycopg2-binary",
 {% if cookiecutter.use_redis == "yes" %}    "django-redis",
 {% endif %}{% if cookiecutter.use_celery == "yes" %}    "celery",
-{% endif %}{% if cookiecutter.use_sso == "yes" %}    "django-allauth[mfa]",
+{% endif %}{% if cookiecutter.use_sso == "yes" %}    "django-allauth[mfa,socialaccount]",
 {% endif %}{% if cookiecutter.use_htmx == "yes" %}    "django-htmx",
     "crispy-bootstrap5",
 {% endif %}{% if cookiecutter.use_ninja == "yes" %}    "django-ninja",
