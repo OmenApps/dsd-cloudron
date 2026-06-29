@@ -14,6 +14,7 @@ dependencies = [
 {% endif %}{% if cookiecutter.use_celery == "yes" %}    "celery",
 {% endif %}{% if cookiecutter.use_sso == "yes" %}    "django-allauth[mfa,socialaccount]",
 {% endif %}{% if cookiecutter.use_htmx == "yes" %}    "django-htmx",
+    "django-crispy-forms",
     "crispy-bootstrap5",
 {% endif %}{% if cookiecutter.use_ninja == "yes" %}    "django-ninja",
 {% endif %}{% if cookiecutter.use_s3 == "yes" %}    "django-storages[boto3]",

@@ -4,6 +4,6 @@ Scaffolded by dsd-cloudron. See README-cloudron.md for the deploy control surfac
 
 ```bash
 uv sync
-python manage.py migrate
-python manage.py runserver
+uv run python manage.py migrate
+uv run python manage.py runserver
 ```
