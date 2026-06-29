@@ -1,5 +1,7 @@
 import functools
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -7,7 +9,9 @@ import pytest
 # Resolve from this file, not the CWD, so the bake suite works regardless of
 # where pytest is invoked from. conftest.py is at tests/bake_tests/, so parents[2]
 # is the repo root.
-TEMPLATE = str(Path(__file__).resolve().parents[2] / "dsd_cloudron" / "project_template")
+TEMPLATE = str(
+    Path(__file__).resolve().parents[2] / "dsd_cloudron" / "project_template"
+)
 
 # Env vars the baked settings.py / manage.py read. They are scrubbed from the bake
 # subprocess environment so an exported value cannot make a baked project behave
@@ -38,3 +42,25 @@ def cookies(cookies):
 def clean_env():
     """os.environ minus the keys the baked project reads - keeps bakes hermetic."""
     return {k: v for k, v in os.environ.items() if k not in _SCRUB}
+
+
+@pytest.fixture
+def run_manage(clean_env):
+    """Run a baked project's manage.py command in a hermetic subprocess.
+
+    Asserts the command succeeded (returncode 0) and returns the CompletedProcess;
+    every current caller wants success, so the assertion lives here.
+    """
+
+    def _run(project_path, *command):
+        proc = subprocess.run(
+            [sys.executable, "manage.py", *command],
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            env=clean_env,
+        )
+        assert proc.returncode == 0, proc.stderr
+        return proc
+
+    return _run

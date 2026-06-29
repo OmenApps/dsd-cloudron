@@ -1,8 +1,13 @@
-import argparse
+"""End-to-end checks of the full scaffold path: cookiecutter skeleton + render_all.
+
+These drive `new.scaffold` (the real CLI path) and assert the rendered Cloudron
+artifact set is correct and internally consistent - the base image pin, the OIDC
+addon wiring, the secret-key handling, the redis/celery/sendmail settings, and the
+template-vs-render_all celery.py byte-equality.
+"""
+
 import json
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -11,30 +16,20 @@ from dsd_cloudron import new, packaging
 
 
 def _args(tmp_path, **toggles):
-    # Mirror the argparse dests build_context reads from new._TOGGLES: default-on
-    # toggles (redis, sendmail) use the no_<x> dest; default-off toggles use the
-    # bare <x> dest. If a new toggle is added in new.py, add its dest here too -
-    # build_context calls getattr(args, dest) and will AttributeError otherwise,
-    # which is the correct loud failure.
-    return argparse.Namespace(
-        command="new",
-        project_name="My Shop",
-        output_dir=str(tmp_path),
-        no_redis=toggles.get("no_redis", False),
-        no_sendmail=toggles.get("no_sendmail", False),
-        celery=toggles.get("celery", False),
-        sso=toggles.get("sso", False),
-        ninja=toggles.get("ninja", False),
-        htmx=toggles.get("htmx", False),
-        s3=toggles.get("s3", False),
-    )
+    # Route through the real parser so the toggle dests are not spelled out a third
+    # time (after new._TOGGLES and cookiecutter.json). Each kwarg name equals its
+    # dest, and "--" + dest.replace("_", "-") reproduces both flag forms
+    # (no_redis -> --no-redis, celery -> --celery).
+    argv = ["new", "My Shop", "--output-dir", str(tmp_path)]
+    argv += ["--" + dest.replace("_", "-") for dest, on in toggles.items() if on]
+    return new.parse_args(argv)
 
 
 def _scaffold(tmp_path, **toggles):
     return Path(new.scaffold(_args(tmp_path, **toggles)))
 
 
-def test_fix_base_image_pinned(tmp_path):
+def test_base_image_pinned(tmp_path):
     project = _scaffold(tmp_path)
     dockerfile = (project / "Dockerfile").read_text()
     assert (
@@ -43,7 +38,7 @@ def test_fix_base_image_pinned(tmp_path):
     ) in dockerfile
 
 
-def test_fix_oidc_addon_not_oauth(tmp_path):
+def test_oidc_addon_not_oauth(tmp_path):
     project = _scaffold(tmp_path, sso=True)
     manifest = json.loads((project / "CloudronManifest.json").read_text())
     assert "oidc" in manifest["addons"]
@@ -55,7 +50,7 @@ def test_fix_oidc_addon_not_oauth(tmp_path):
     assert manifest["id"] == "com.example.my-shop"
 
 
-def test_fix_secret_key_marker_and_gosu(tmp_path):
+def test_secret_key_marker_and_gosu(tmp_path):
     project = _scaffold(tmp_path)
     start = (project / "start.sh").read_text()
     assert "/app/data/.secret_key" in start
@@ -63,7 +58,7 @@ def test_fix_secret_key_marker_and_gosu(tmp_path):
     assert "useradd" not in start  # no custom 'django' user
 
 
-def test_fix_redis_url_uses_cloudron_redis_url(tmp_path):
+def test_redis_url_uses_cloudron_redis_url(tmp_path):
     # redis is on by default (infra), so no toggle needed.
     project = _scaffold(tmp_path)
     settings = (project / "my_shop" / "cloudron_settings.py").read_text()
@@ -142,7 +137,7 @@ def test_sso_provider_id_matches_manifest_redirect_uri(tmp_path):
     assert f"/{provider_id}/" in redirect
 
 
-def test_celery_module_matches_m0_render(tmp_path):
+def test_celery_module_matches_render_celery_app(tmp_path):
     # The template ships its own celery.py and render_all's copy is skipped
     # (skip-if-present), so guard against the two drifting: the shipped bytes must
     # equal render_celery_app's output for the SAME config the scaffold built.
@@ -159,20 +154,13 @@ def test_celery_module_matches_m0_render(tmp_path):
     )
 
 
-def test_celery_sso_scaffold_passes_check(tmp_path, clean_env):
+def test_celery_sso_scaffold_passes_check(tmp_path, run_manage):
     # The bake suite checks each toggle alone; this is the only test that runs
     # `check` on the combined --celery --sso scaffold (the full new.scaffold path).
     pytest.importorskip("celery")
     pytest.importorskip("allauth")
     project = _scaffold(tmp_path, celery=True, sso=True)
-    proc = subprocess.run(
-        [sys.executable, "manage.py", "check"],
-        cwd=project,
-        capture_output=True,
-        text=True,
-        env=clean_env,
-    )
-    assert proc.returncode == 0, proc.stderr
+    run_manage(project, "check")
 
 
 def test_s3_adds_no_manifest_addon(tmp_path):
@@ -184,9 +172,9 @@ def test_s3_adds_no_manifest_addon(tmp_path):
     assert "s3" not in manifest["addons"]
 
 
-def test_fix_no_scheduler_with_missing_commands(tmp_path):
+def test_no_scheduler_addon(tmp_path):
     project = _scaffold(tmp_path, celery=True)
     manifest = json.loads((project / "CloudronManifest.json").read_text())
-    # render_all does not emit a scheduler addon, so the prototype's broken
-    # cleanup_mfa / celery_cleanup cron entries cannot occur.
+    # render_all emits no scheduler addon, so no broken scheduled-job entries can
+    # ship (the failure mode an earlier cookiecutter prototype had).
     assert "scheduler" not in manifest["addons"]
