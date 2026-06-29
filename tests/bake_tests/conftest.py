@@ -1,4 +1,5 @@
 import functools
+import os
 from pathlib import Path
 
 import pytest
@@ -8,9 +9,32 @@ import pytest
 # is the repo root.
 TEMPLATE = str(Path(__file__).resolve().parents[2] / "dsd_cloudron" / "project_template")
 
+# Env vars the baked settings.py / manage.py read. They are scrubbed from the bake
+# subprocess environment so an exported value cannot make a baked project behave
+# differently from a clean checkout:
+#   - DJANGO_SETTINGS_MODULE: the baked manage.py uses os.environ.setdefault, so an
+#     inherited value (a CI runner running other Django tests) would point the bake
+#     subprocess at the wrong settings module and fail with ModuleNotFoundError.
+#   - POSTGRES_HOST / REDIS_URL / AWS_STORAGE_BUCKET_NAME: settings.py reads these to
+#     switch off its sqlite / local-memory defaults onto the compose services, which
+#     would flip a baked project onto Postgres mid-test and fail migrate.
+_SCRUB = {
+    "DJANGO_SETTINGS_MODULE",
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+    "REDIS_URL",
+    "AWS_STORAGE_BUCKET_NAME",
+}
+
 
 @pytest.fixture
 def cookies(cookies):
     """Point the bake suite at the bundled template without a global --template."""
     cookies.bake = functools.partial(cookies.bake, template=TEMPLATE)
     return cookies
+
+
+@pytest.fixture
+def clean_env():
+    """os.environ minus the keys the baked project reads - keeps bakes hermetic."""
+    return {k: v for k, v in os.environ.items() if k not in _SCRUB}
