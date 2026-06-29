@@ -34,6 +34,20 @@ def test_render_all_celery_adds_supervisor_confs(tmp_path):
     assert (tmp_path / "supervisor" / "celery-beat.conf").exists()
 
 
+def test_render_all_celery_writes_celery_app(tmp_path):
+    # The worker/beat confs run `celery -A blog`, so render_all must also write
+    # the project package's celery.py; without it the worker cannot import its app.
+    render_all(_config(enable_celery=True), tmp_path)
+    celery_py = tmp_path / "blog" / "celery.py"
+    assert celery_py.exists()
+    assert 'Celery("blog")' in celery_py.read_text(encoding="utf-8")
+
+
+def test_render_all_without_celery_omits_celery_app(tmp_path):
+    render_all(_config(enable_celery=False), tmp_path)
+    assert not (tmp_path / "blog" / "celery.py").exists()
+
+
 def test_start_sh_is_executable(tmp_path):
     render_all(_config(), tmp_path)
     mode = (tmp_path / "start.sh").stat().st_mode

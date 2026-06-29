@@ -9,6 +9,7 @@ from dsd_cloudron.packaging import (
     render_start_sh,
     render_nginx_conf,
     render_cloudron_settings,
+    render_celery_app,
 )
 
 EXPECTED = Path(__file__).parent / "expected"
@@ -19,6 +20,7 @@ CASES = {
     "start.sh": render_start_sh,
     "nginx.conf": render_nginx_conf,
     "cloudron_settings.py": render_cloudron_settings,
+    "celery.py": render_celery_app,
 }
 
 
