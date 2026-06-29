@@ -8,7 +8,10 @@ import pytest
 def _check(project_path, env):
     proc = subprocess.run(
         [sys.executable, "manage.py", "check"],
-        cwd=project_path, capture_output=True, text=True, env=env,
+        cwd=project_path,
+        capture_output=True,
+        text=True,
+        env=env,
     )
     assert proc.returncode == 0, proc.stderr
 
@@ -26,7 +29,9 @@ def test_celery_on_keeps_celery_module(cookies, clean_env):
     # celery-on bakes an inner __init__ that does `from .celery import app`, so
     # `manage.py check` imports celery; skip when the optional dep is absent.
     pytest.importorskip("celery")
-    result = cookies.bake(extra_context={"project_name": "My Shop", "use_celery": "yes"})
+    result = cookies.bake(
+        extra_context={"project_name": "My Shop", "use_celery": "yes"}
+    )
     assert result.exit_code == 0
     assert (result.project_path / "my_shop" / "celery.py").exists()
     _check(result.project_path, clean_env)
@@ -101,7 +106,9 @@ def test_s3_on_wires_storage_and_checks(cookies, clean_env):
     assert result.exit_code == 0
     settings = (result.project_path / "my_shop" / "settings.py").read_text()
     assert "storages.backends.s3.S3Storage" in settings
-    assert "django-storages[boto3]" in (result.project_path / "pyproject.toml").read_text()
+    assert (
+        "django-storages[boto3]" in (result.project_path / "pyproject.toml").read_text()
+    )
     _check(result.project_path, clean_env)
 
 
