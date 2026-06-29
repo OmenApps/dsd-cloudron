@@ -24,6 +24,7 @@ dependencies = [
     "django>=4.2",
     "pluggy>=1.5.0",
     "django-simple-deploy>=0.9.4",
+    "cookiecutter>=2.5",
 ]
 
 [project.optional-dependencies]
@@ -31,8 +32,27 @@ dev = [
     "black>=24.1.0",
     "build>=1.2.1",
     "pytest>=8.3.0",
+    "pytest-cookies>=0.7.0",
     "twine>=5.1.1",
 ]
+# Runtime packages the toggle-on bake tests import. The bake tests shell out with
+# the *outer* interpreter (`subprocess.run([sys.executable, "manage.py", ...])`),
+# so these must be importable in the test environment - being listed in the
+# *baked* project's pyproject.toml is not enough. Run the bake suite with
+# `pip install -e ".[dev,bake]"`. The toggle tests still `importorskip` each
+# package, so a `dev`-only environment skips them instead of erroring.
+bake = [
+    "celery>=5.3",
+    "django-redis>=5.4",
+    "django-allauth[mfa]>=65",
+    "crispy-bootstrap5>=2024.2",
+    "django-htmx>=1.17",
+    "django-ninja>=1.1",
+    "django-storages[boto3]>=1.14",
+]
+
+[project.scripts]
+dsd-cloudron = "dsd_cloudron.new:main"
 
 [project.urls]
 "GitHub" = "https://github.com/omenapps/dsd-cloudron"
@@ -48,4 +68,4 @@ include-package-data = true
 # The golden snapshot fixtures and the integration reference files are byte-exact
 # render output, not source code; black must not reformat them or they stop
 # matching the render functions and the deployed artifacts.
-force-exclude = "tests/unit_tests/expected/|tests/integration_tests/reference_files/"
+force-exclude = "tests/unit_tests/expected/|tests/integration_tests/reference_files/|dsd_cloudron/project_template/"
