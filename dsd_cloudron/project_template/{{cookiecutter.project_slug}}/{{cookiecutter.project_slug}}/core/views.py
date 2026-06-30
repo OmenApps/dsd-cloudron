@@ -2,10 +2,10 @@ from django.http import HttpResponse
 
 
 def home(request):
-    """Landing page at /, so the app root and the post-login redirect resolve.
+    """Landing page at /, so the app root resolves instead of returning a 404.
 
-    LOGIN_REDIRECT_URL is "/", so without a root route every sign-in (including
-    Cloudron SSO) lands on a 404. Replace this with your own homepage.
+    When SSO is enabled LOGIN_REDIRECT_URL is "/", so the post-login redirect also
+    lands here; without a root route it would 404. Replace this with your homepage.
     """
     return HttpResponse(
         "<h1>{{ cookiecutter.project_name }}</h1>"

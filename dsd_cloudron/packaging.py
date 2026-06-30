@@ -69,7 +69,7 @@ class CloudronAppConfig:
         # Cloudron's manifest schema rejects an author shorter than 2 characters,
         # so an empty author fails `cloudron install` server-side. Catch it at
         # construction with a clear message instead of a late install error.
-        if len(self.author) < 2:
+        if len(self.author.strip()) < 2:
             raise ValueError(
                 f"author {self.author!r} is too short; Cloudron requires the "
                 "manifest author to be at least 2 characters."

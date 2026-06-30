@@ -78,7 +78,7 @@ def test_config_rejects_unknown_pkg_manager():
 def test_config_rejects_short_author():
     # An empty/one-char author passes Python but fails `cloudron install`; reject
     # it at construction (Cloudron requires the manifest author >= 2 chars).
-    for bad in ("", "x"):
+    for bad in ("", "x", "  "):
         with pytest.raises(ValueError):
             CloudronAppConfig(
                 project_name="blog", app_id="com.example.blog", author=bad

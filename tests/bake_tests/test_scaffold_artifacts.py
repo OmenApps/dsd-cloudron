@@ -38,7 +38,7 @@ def test_base_image_pinned(tmp_path):
     ) in dockerfile
 
 
-def test_root_url_serves_home(tmp_path):
+def test_root_url_serves_home(tmp_path, run_manage):
     # Without a root route a bare visit to the app root 404s; the scaffold wires a
     # home view at "/" for every project.
     project = _scaffold(tmp_path)
@@ -46,6 +46,10 @@ def test_root_url_serves_home(tmp_path):
     views = (project / "my_shop" / "core" / "views.py").read_text()
     assert 'path("", home' in urls
     assert "def home(" in views
+    # `check` resolves urls.py, so it catches a broken home import or view
+    # reference that the text assertions above would miss; this is also the only
+    # `check` over the default (no-toggle) scaffold.
+    run_manage(project, "check")
 
 
 def test_sso_login_redirect_targets_the_home_route(tmp_path):
