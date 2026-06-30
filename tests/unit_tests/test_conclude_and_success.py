@@ -1,3 +1,4 @@
+from dsd_cloudron import deploy_messages
 from dsd_cloudron import platform_deployer as pd
 from dsd_cloudron.platform_deployer import PlatformDeployer
 from dsd_cloudron.packaging import CloudronAppConfig
@@ -47,6 +48,17 @@ def test_conclude_commits_and_installs(monkeypatch):
     dsd_config.unit_testing = False
     _deployer()._conclude_automate_all()
     assert calls == ["commit", "install"]
+
+
+def test_success_messages_omit_literal_password():
+    config = CloudronAppConfig(project_name="blog", app_id="com.example.blog")
+    messages = [
+        deploy_messages.success_msg(config, "blog"),
+        deploy_messages.success_msg_automate_all("https://blog.example.com"),
+    ]
+    for message in messages:
+        assert "changeme123" not in message
+        assert "/app/data/.initial_admin_password" in message
 
 
 def test_success_message_config_only(monkeypatch):

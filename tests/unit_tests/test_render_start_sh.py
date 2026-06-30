@@ -45,7 +45,9 @@ def test_first_run_superuser_behind_initialized_marker():
     assert "/app/data/.initialized" in text
     assert "createsuperuser" in text
     assert "--username admin" in text
-    assert "changeme123" in text
+    assert "changeme123" not in text
+    assert "/app/data/.initial_admin_password.tmp" in text   # the generated-password write
+    assert "/app/data/.initial_admin_password" in text       # consumed by createsuperuser
     # The marker is written only after createsuperuser succeeds, so a failed
     # first run retries instead of leaving the app with no admin account.
     assert "touch /app/data/.initialized" in text

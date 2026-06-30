@@ -153,8 +153,11 @@ def success_msg(config, location, log_output=""):
         returns 404 there under DEBUG=False, re-run with --health-check-path
         pointing at a path that returns 200, or edit CloudronManifest.json.
 
-        A default admin account will be created on the first install (admin /
-        changeme123). Change the password immediately after first login.
+        A default admin account `admin` is created on the first install. Its
+        password is generated per install and saved on the server at
+        /app/data/.initial_admin_password. Retrieve it with:
+            cloudron exec --app {location_hint} -- cat /app/data/.initial_admin_password
+        Sign in at /admin/, change the password, then delete that file.
         """)
     if log_output:
         msg += (
@@ -177,5 +180,9 @@ def success_msg_automate_all(deployed_url):
         It should be available at:
             {where}
 
-        Default admin account: admin / changeme123 - change it immediately.
+        A default admin account `admin` was created; its password is generated
+        per install and saved on the server at /app/data/.initial_admin_password.
+        Read it with `cloudron exec --app <subdomain> -- cat
+        /app/data/.initial_admin_password`, change it immediately, then delete
+        that file.
         """)

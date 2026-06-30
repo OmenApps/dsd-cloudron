@@ -32,13 +32,18 @@ gosu cloudron:cloudron python3 "${CODE}/manage.py" migrate --noinput
 
 if [[ ! -f /app/data/.initialized ]]; then
     echo "==> First run: creating default admin superuser"
-    # Scope the default password to this one command so it never enters the
-    # long-lived supervisord/gunicorn/celery environment. Only mark initialized
-    # when the superuser is actually created, so a failed first run (e.g.
-    # createsuperuser errors) retries next start instead of silently leaving the
-    # app with no admin account. The `if` guard keeps the non-zero exit from
-    # tripping `set -e`.
-    if DJANGO_SUPERUSER_PASSWORD="changeme123" gosu cloudron:cloudron \
+    # Generate a per-install random password so the open-source image ships no
+    # world-known default credential. Persist it to /app/data (mode 600) so the
+    # operator can retrieve it with `cloudron exec`; scope it to this one command
+    # so it never enters the long-lived supervisord/gunicorn/celery environment.
+    # Only mark initialized when the superuser is actually created, so a failed
+    # first run retries next start instead of leaving the app with no admin.
+    if [[ ! -s /app/data/.initial_admin_password ]]; then
+        python3 -c "import secrets; print(secrets.token_urlsafe(18))" > /app/data/.initial_admin_password.tmp
+        chmod 600 /app/data/.initial_admin_password.tmp
+        mv /app/data/.initial_admin_password.tmp /app/data/.initial_admin_password
+    fi
+    if DJANGO_SUPERUSER_PASSWORD="$(cat /app/data/.initial_admin_password)" gosu cloudron:cloudron \
         python3 "${CODE}/manage.py" createsuperuser \
         --username admin --email admin@cloudron.local --noinput; then
         touch /app/data/.initialized
