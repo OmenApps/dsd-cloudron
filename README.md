@@ -10,6 +10,8 @@ install serves two audiences:
 Both render the same Cloudron artifact set (manifest, Dockerfile, start.sh,
 supervisor configs, nginx, settings glue) through one packaging core.
 
+Documentation: https://dsd-cloudron.readthedocs.io
+
 ## Install
 
 ```bash
