@@ -5,10 +5,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_readme_documents_both_entry_points():
     text = (ROOT / "README.md").read_text()
-    assert "manage.py deploy" in text          # retrofit
-    assert "dsd-cloudron new" in text           # greenfield
+    assert "manage.py deploy" in text  # retrofit
+    assert "dsd-cloudron new" in text  # greenfield
     assert "cloudron install" in text
-    assert "cloudron update" in text            # iteration loop
+    assert "cloudron update" in text  # iteration loop
 
 
 def test_license_and_changelog_exist():
