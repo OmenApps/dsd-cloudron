@@ -16,8 +16,9 @@ dsd-cloudron new "My App" --celery
 Either way, the deploy:
 
 - Generates a `<project>/celery.py` module and wires it into your
-  project's `__init__.py` by importing `celery_app` from it, so
-  `celery -A <project>` finds the app automatically.
+  project's `__init__.py`, which imports `app` from `celery.py` and
+  aliases it to `celery_app`, so `celery -A <project>` finds the app
+  automatically.
 - Adds `celery-worker` and `celery-beat` supervisor programs, run alongside
   gunicorn on the same Cloudron instance.
 - Adds `celery[redis]` to your requirements.

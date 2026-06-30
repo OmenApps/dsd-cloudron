@@ -90,6 +90,6 @@ supervisord's PID 1 - nothing that handles an actual request runs as root.
 Whatever a project's `Dockerfile` does in earlier build stages - installing
 dependencies, compiling assets - the final stage must be `FROM
 cloudron/base:5.0.0`, pinned by digest. That's the image Cloudron's platform
-expects: it provides the `cloudron` and `gosu` users/tooling that `start.sh`
+expects: it provides the `cloudron` user and the `gosu` tool that `start.sh`
 relies on, and Cloudron validates against it at install time. Earlier stages
 can use any base that's convenient for the build.

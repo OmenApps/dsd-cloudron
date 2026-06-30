@@ -47,9 +47,10 @@ Celery and SSO touch your application code, not just the Cloudron config,
 so they stay opt-in:
 
 - `--celery` adds a worker and beat process, generates a `celery.py`
-  module, wires it into your project's `__init__.py`, and adds `celery` to
-  your requirements. It requires Redis, since Celery uses the Redis addon
-  as its broker. {doc}`enable-celery` has more detail on the flag.
+  module, wires it into your project's `__init__.py`, and adds
+  `celery[redis]` to your requirements. It requires Redis, since Celery
+  uses the Redis addon as its broker. {doc}`enable-celery` has more
+  detail on the flag.
 - `--sso` renders the Cloudron OIDC addon and a django-allauth provider
   configuration and adds the dependency, but you finish wiring allauth
   into `INSTALLED_APPS` and `urls.py` yourself - the success message after
@@ -84,7 +85,7 @@ regenerates them from your current flags.
   from your project name.
 
 `--memory-limit`
-: Memory limit in bytes. Defaults to 1073741824 (1 GB).
+: Memory limit in bytes. Defaults to 1073741824 (about 1 GB).
 
 `--health-check-path`
 : Path Cloudron polls for a 2xx response. Defaults to `/`; point it at a

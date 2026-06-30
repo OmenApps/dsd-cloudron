@@ -74,7 +74,7 @@ Cloudron server, independent of which addons are enabled:
 
 `--memory-limit`
 : Memory limit in bytes, enforced by Cloudron as a hard cap on the app's
-  container. Defaults to `1073741824` (1 GB). Raise it for projects that
+  container. Defaults to `1073741824` (about 1 GB). Raise it for projects that
   need more headroom, for example a Celery worker processing large jobs.
 
 `--health-check-path`
@@ -88,8 +88,8 @@ Cloudron server, independent of which addons are enabled:
 
 ## Targeting a Cloudron server
 
-`--server` and `--allow-selfsigned` are not addon flags, but they affect
-which server an install lands on:
+`--server` and `--allow-selfsigned` are `manage.py deploy` flags only,
+not addon flags. They affect which server an install lands on:
 
 `--server`
 : Which logged-in Cloudron server to target, if `cloudron login` has been
@@ -100,6 +100,8 @@ which server an install lands on:
 : Accept a self-signed certificate on that server, for a Cloudron
   instance that is not yet using a certificate from a trusted CA.
 
-Both only matter when `--automate-all` (or `dsd-cloudron new` followed by
-`cloudron install`) actually talks to a server; with config-only deploys
-they have no effect.
+Both only matter when `--automate-all` actually talks to a server; with
+config-only deploys they have no effect. `dsd-cloudron new` does not call
+the `cloudron` CLI itself, so server selection and self-signed
+certificates are a matter for the `cloudron login` and `cloudron install`
+commands you run yourself after scaffolding.
