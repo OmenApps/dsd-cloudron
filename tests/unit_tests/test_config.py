@@ -16,6 +16,9 @@ def test_config_defaults():
     assert config.http_port == 8000
     assert config.health_check_path == "/"
     assert config.version == "1.0.0"
+    # Cloudron rejects a manifest author shorter than 2 chars, so the default
+    # must be a valid (editable) placeholder, not the empty string.
+    assert len(config.author) >= 2
 
 
 def test_config_toggles_off():
@@ -70,6 +73,16 @@ def test_config_rejects_unknown_pkg_manager():
         CloudronAppConfig(
             project_name="blog", app_id="com.example.blog", pkg_manager="conda"
         )
+
+
+def test_config_rejects_short_author():
+    # An empty/one-char author passes Python but fails `cloudron install`; reject
+    # it at construction (Cloudron requires the manifest author >= 2 chars).
+    for bad in ("", "x"):
+        with pytest.raises(ValueError):
+            CloudronAppConfig(
+                project_name="blog", app_id="com.example.blog", author=bad
+            )
 
 
 def test_config_accepts_all_supported_pkg_managers():

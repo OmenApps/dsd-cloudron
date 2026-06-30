@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "com.example.blog",
   "title": "Blog",
-  "author": "",
+  "author": "Your Name",
   "version": "1.0.0",
   "description": "Deployed with dsd-cloudron.",
   "tagline": "A Django application on Cloudron.",

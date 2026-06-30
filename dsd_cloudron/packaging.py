@@ -46,7 +46,7 @@ class CloudronAppConfig:
     health_check_path: str = "/"
     title: str = ""
     version: str = "1.0.0"
-    author: str = ""
+    author: str = "Your Name"
 
     def __post_init__(self):
         # project_name is spliced into generated Python (STATIC_ROOT) and into
@@ -65,6 +65,14 @@ class CloudronAppConfig:
             raise ValueError(
                 f"Unsupported pkg_manager {self.pkg_manager!r}; "
                 f"expected one of {', '.join(SUPPORTED_PKG_MANAGERS)}."
+            )
+        # Cloudron's manifest schema rejects an author shorter than 2 characters,
+        # so an empty author fails `cloudron install` server-side. Catch it at
+        # construction with a clear message instead of a late install error.
+        if len(self.author) < 2:
+            raise ValueError(
+                f"author {self.author!r} is too short; Cloudron requires the "
+                "manifest author to be at least 2 characters."
             )
         # Celery's broker is the Redis addon URL (CELERY_BROKER_URL reads
         # CLOUDRON_REDIS_URL), and the manifest only declares the redis addon
