@@ -9,5 +9,6 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+docs/_build/
 example-cloudron-apps/
 example-dsd-plugins/

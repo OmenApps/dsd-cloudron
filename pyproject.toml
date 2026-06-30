@@ -53,6 +53,13 @@ bake = [
     "django-ninja>=1.1",
     "django-storages[boto3]>=1.14",
 ]
+docs = [
+    "sphinx>=7",
+    "myst-parser>=2",
+    "furo",
+    "sphinx-copybutton",
+    "sphinx-design",
+]
 
 [project.scripts]
 dsd-cloudron = "dsd_cloudron.new:main"
