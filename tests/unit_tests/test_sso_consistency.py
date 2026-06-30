@@ -1,14 +1,11 @@
 import json
+import re
 
 from dsd_cloudron.packaging import (
     CloudronAppConfig,
     render_manifest,
     render_cloudron_settings,
 )
-
-# allauth's openid_connect callback for a provider mounted at /accounts/ with
-# provider id "cloudron" is /accounts/oidc/cloudron/login/callback/.
-EXPECTED_REDIRECT = "/accounts/oidc/cloudron/login/callback/"
 
 
 def _config():
@@ -17,17 +14,15 @@ def _config():
     )
 
 
-def test_manifest_redirect_uri_matches_allauth_callback():
-    manifest = json.loads(render_manifest(_config()))
-    assert manifest["addons"]["oidc"]["loginRedirectUri"] == EXPECTED_REDIRECT
-
-
-def test_settings_use_cloudron_provider_id():
-    settings = render_cloudron_settings(_config())
-    assert '"provider_id": "cloudron"' in settings
-    assert 'os.environ["CLOUDRON_OIDC_ISSUER"]' in settings
-
-
-def test_manifest_optional_sso_true():
-    manifest = json.loads(render_manifest(_config()))
-    assert manifest["optionalSso"] is True
+def test_manifest_and_settings_agree_on_provider_id():
+    # The cross-artifact invariant no single other unit test pins: the OIDC
+    # provider id in the rendered settings must match the provider segment of the
+    # manifest's allauth callback redirect URI. test_render_manifest and
+    # test_render_settings each pin one side against a constant; this checks that
+    # the two render functions agree - the fast unit twin of the bake-level check.
+    config = _config()
+    manifest = json.loads(render_manifest(config))
+    settings = render_cloudron_settings(config)
+    redirect = manifest["addons"]["oidc"]["loginRedirectUri"]
+    match = re.search(r'"provider_id": "([^"]+)"', settings)
+    assert match and f"/{match.group(1)}/" in redirect
