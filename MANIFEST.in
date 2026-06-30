@@ -1,3 +1,8 @@
 include LICENSE
 recursive-include dsd_cloudron/templates *
 recursive-include dsd_cloudron/project_template *
+
+# The recursive-includes above would otherwise sweep up compiled bytecode that
+# Python writes next to the templates package, shipping a stray .pyc in the wheel.
+global-exclude __pycache__/*
+global-exclude *.py[cod]
