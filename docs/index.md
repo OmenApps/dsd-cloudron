@@ -37,3 +37,18 @@ reference/cli
 reference/generated-files
 reference/cloudron-addons
 ```
+
+```{toctree}
+:caption: Understanding dsd-cloudron
+:maxdepth: 2
+
+explanation/architecture
+```
+
+```{toctree}
+:caption: Project
+:maxdepth: 1
+
+contributing
+changelog
+```
