@@ -25,7 +25,10 @@ def test_gunicorn_binds_unix_socket_as_cloudron():
     g = _confs()["gunicorn.conf"]
     assert "[program:gunicorn]" in g
     assert "user=cloudron" in g
-    assert "environment=HOME=/home/cloudron,USER=cloudron" in g
+    # HOME must point at a writable dir; /home/cloudron is read-only on Cloudron,
+    # so gunicorn's ~/.gunicorn write fails there. /tmp is writable and ephemeral.
+    assert "environment=HOME=/tmp,USER=cloudron" in g
+    assert "/home/cloudron" not in g
     assert "blog.wsgi:application" in g
     assert "--bind unix:/run/blog/gunicorn.sock" in g
     assert '--forwarded-allow-ips="*"' in g
