@@ -28,3 +28,12 @@ guides/addons-and-email
 guides/operating-and-updating
 guides/troubleshooting
 ```
+
+```{toctree}
+:caption: Reference
+:maxdepth: 2
+
+reference/cli
+reference/generated-files
+reference/cloudron-addons
+```
