@@ -7,3 +7,11 @@ install serves two audiences: retrofit an existing project with
 Either path renders the same Cloudron artifact set - manifest, Dockerfile,
 start.sh, supervisor configs, nginx, settings glue - through a single shared
 packaging core.
+
+```{toctree}
+:caption: Getting started
+:maxdepth: 2
+
+getting-started/installation
+getting-started/quickstart
+```
