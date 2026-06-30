@@ -76,6 +76,15 @@ def build_context(args):
     impossible toggle combination fails cleanly instead of writing a half-baked
     project to disk and then raising a raw ValueError from CloudronAppConfig.
     """
+    # project_name is interpolated verbatim into generated source (the home view's
+    # HTML) and docs, and cookiecutter's Jinja2 does not autoescape - a quote,
+    # backslash, or angle bracket would break or inject into the rendered files.
+    # Restrict the raw name to the characters the message below already promises.
+    if not re.fullmatch(r"[A-Za-z0-9 -]+", args.project_name):
+        _fail(
+            f"{args.project_name!r} contains characters that are not allowed in a "
+            "project name; use letters, digits, spaces, or dashes."
+        )
     slug = _slugify(args.project_name)
     # isidentifier() alone is not enough: it accepts Python keywords ("class",
     # "import", "for", ...), which would slug fine but make `import <slug>`

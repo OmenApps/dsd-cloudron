@@ -54,6 +54,16 @@ def test_python_keyword_name_is_rejected():
             new.build_context(args)
 
 
+def test_unsafe_characters_in_name_are_rejected():
+    # The raw name is spliced verbatim into generated source (cookiecutter does not
+    # autoescape), so quotes, backslashes, and angle brackets must be rejected
+    # before they can break or inject into the rendered home view.
+    for name in ('Joe "Big" Shop', "back\\slash", "<script>", "tab\tname"):
+        args = new.parse_args(["new", name])
+        with pytest.raises(SystemExit):
+            new.build_context(args)
+
+
 def test_all_punctuation_name_is_rejected():
     # Collapses to an empty slug, which is not a valid identifier.
     args = new.parse_args(["new", "!!!"])
