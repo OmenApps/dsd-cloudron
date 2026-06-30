@@ -47,7 +47,7 @@ def test_manifest_checklist_and_message():
     m = _manifest()
     assert (
         m["checklist"]["change-default-password"]["message"]
-        == "Change the default admin password"
+        == "Retrieve and secure the generated admin password"
     )
     assert "admin" in m["postInstallMessage"]
 

@@ -245,7 +245,7 @@ def render_manifest(config):
         "addons": addons,
         "checklist": {
             "change-default-password": {
-                "message": "Change the default admin password",
+                "message": "Retrieve and secure the generated admin password",
             }
         },
         "postInstallMessage": (
