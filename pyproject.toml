@@ -34,7 +34,9 @@ dev = [
     "build>=1.2.1",
     "pytest>=8.3.0",
     "pytest-cookies>=0.7.0",
-    "twine>=5.1.1",
+    # twine 6.1 is the first release that validates and uploads Metadata 2.4,
+    # which the PEP 639 `license` expression makes the build emit.
+    "twine>=6.1.0",
 ]
 # Runtime packages the toggle-on bake tests import. The bake tests shell out with
 # the *outer* interpreter (`subprocess.run([sys.executable, "manage.py", ...])`),
