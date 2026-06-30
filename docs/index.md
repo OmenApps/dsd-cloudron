@@ -22,4 +22,6 @@ getting-started/quickstart
 
 guides/retrofit-existing-project
 guides/scaffold-new-project
+guides/enable-sso
+guides/enable-celery
 ```
