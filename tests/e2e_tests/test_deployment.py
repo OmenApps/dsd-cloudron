@@ -24,20 +24,20 @@ def test_greenfield_deploys(tmp_path, e2e_location):
         # The deployed app must never leak real secret VALUES into logs. Asserting
         # on the variable name is theater - apps never print the name; a leak
         # prints the value (e.g. a settings dump or traceback). Read the actual
-        # injected values and assert each is absent, plus the initial admin
-        # password file written by start.sh.
+        # injected values and assert each is absent. Fail loud if a secret is
+        # missing or renamed rather than skipping the check, otherwise a future
+        # Cloudron env-var rename would turn this gate into a silent no-op. The
+        # postgresql password is the real secret; the redis addon is declared
+        # `noPassword` so CLOUDRON_REDIS_URL carries no credential and is not
+        # checked here.
         env = utils.app_env(e2e_location)
-        secret_values = [
-            env.get("CLOUDRON_POSTGRESQL_PASSWORD", ""),
-            env.get("CLOUDRON_REDIS_URL", ""),
-        ]
-        for value in secret_values:
-            if value:
-                assert value not in logs
+        pg_password = env.get("CLOUDRON_POSTGRESQL_PASSWORD", "")
+        assert pg_password, "CLOUDRON_POSTGRESQL_PASSWORD not injected"
+        assert pg_password not in logs
         admin_pw = utils.run(
             f"cloudron exec --app {e2e_location} -- cat /app/data/.initial_admin_password"
         ).stdout.strip()
-        if admin_pw:
-            assert admin_pw not in logs
+        assert admin_pw, "initial admin password file is empty or missing"
+        assert admin_pw not in logs
     finally:
         utils.uninstall(e2e_location)

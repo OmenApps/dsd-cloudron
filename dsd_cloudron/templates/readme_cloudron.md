@@ -44,6 +44,24 @@ cloudron logs --app <subdomain> -f  # tail logs
 `/app/data` and the Postgres/Redis addons persist across updates. `migrate` runs
 on every start, so new migrations apply automatically.
 
+## First sign-in
+
+A local `admin` superuser is created on the first install. Its password is
+generated per install and saved on the server at
+`/app/data/.initial_admin_password`. Retrieve it with:
+
+```bash
+cloudron exec --app <subdomain> -- cat /app/data/.initial_admin_password
+```
+
+Sign in at `/admin/`, change the password, then delete
+`/app/data/.initial_admin_password` - it persists in backups until you do. With
+SSO enabled, sign in with your Cloudron account instead; the local `admin` is a
+break-glass account you can use to promote your Cloudron user in the Django
+admin. The default account assumes the standard Django user model
+(`USERNAME_FIELD = "username"`); a project with a custom user model should create
+its superuser manually.
+
 ## Resource tuning
 
 `start.sh` runs `collectstatic` into `/run/{{ project_name }}/static` on every

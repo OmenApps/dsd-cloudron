@@ -24,6 +24,14 @@ def test_readme_mentions_iteration_loop():
     assert "cloudron logs" in text
 
 
+def test_readme_documents_first_signin_credential():
+    # The manifest's postInstallMessage points operators here, so the generated
+    # admin credential and the backup-residue cleanup step must be documented.
+    text = render_readme(_config())
+    assert "/app/data/.initial_admin_password" in text
+    assert "cloudron exec" in text
+
+
 def test_dockerignore_excludes_vcs_and_venv():
     text = render_dockerignore(_config())
     assert ".git" in text

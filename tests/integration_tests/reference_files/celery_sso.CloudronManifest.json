@@ -28,5 +28,5 @@
       "message": "Change the default admin password"
     }
   },
-  "postInstallMessage": "This app was configured with dsd-cloudron. A local admin account `admin` was created; its generated password is on the server at /app/data/.initial_admin_password (read it with `cloudron exec`).\n\n<nosso>Sign in at /admin/ with that account, then change the password immediately.</nosso>\n\n<sso>Sign in with your Cloudron account. The `admin` account above is a local break-glass admin; use it (or `cloudron exec`) to promote your Cloudron user in the Django admin.</sso>\n\nSee README-cloudron.md in the app source for the full configuration control surface."
+  "postInstallMessage": "This app was configured with dsd-cloudron. A local admin account `admin` was created; its generated password is on the server at /app/data/.initial_admin_password (read it with `cloudron exec`). Delete that file once you have recorded the password - it persists in backups until you do.\n\n<nosso>\nSign in at /admin/ with that account, then change the password immediately.\n</nosso>\n\n<sso>\nSign in with your Cloudron account. The `admin` account above is a local break-glass admin; use it (or `cloudron exec`) to promote your Cloudron user in the Django admin.\n</sso>\n\nSee README-cloudron.md in the app source for the full configuration control surface."
 }

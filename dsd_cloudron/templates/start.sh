@@ -38,6 +38,11 @@ if [[ ! -f /app/data/.initialized ]]; then
     # so it never enters the long-lived supervisord/gunicorn/celery environment.
     # Only mark initialized when the superuser is actually created, so a failed
     # first run retries next start instead of leaving the app with no admin.
+    # createsuperuser names its login flag after the user model's USERNAME_FIELD,
+    # so `--username admin` assumes the standard Django user model; a project with
+    # a custom user model must create its admin manually. If an admin already
+    # exists (e.g. /app/data was reset while the Postgres addon persisted) this
+    # fails harmlessly and retries each start - recover with `cloudron exec`.
     if [[ ! -s /app/data/.initial_admin_password ]]; then
         python3 -c "import secrets; print(secrets.token_urlsafe(18))" > /app/data/.initial_admin_password.tmp
         chmod 600 /app/data/.initial_admin_password.tmp

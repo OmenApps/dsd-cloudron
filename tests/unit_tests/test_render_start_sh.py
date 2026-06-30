@@ -46,8 +46,14 @@ def test_first_run_superuser_behind_initialized_marker():
     assert "createsuperuser" in text
     assert "--username admin" in text
     assert "changeme123" not in text
-    assert "/app/data/.initial_admin_password.tmp" in text   # the generated-password write
-    assert "/app/data/.initial_admin_password" in text       # consumed by createsuperuser
+    # The generated-password file is written (via .tmp) and read by createsuperuser.
+    assert "/app/data/.initial_admin_password.tmp" in text
+    assert "/app/data/.initial_admin_password" in text
+    # Mirror the secret-key guards: assert the password is generated (not a
+    # constant) and written mode 600, so a future edit cannot quietly drop the
+    # randomness or the permission bits with only the golden re-pinned.
+    assert "secrets.token_urlsafe(18)" in text
+    assert "chmod 600 /app/data/.initial_admin_password.tmp" in text
     # The marker is written only after createsuperuser succeeds, so a failed
     # first run retries instead of leaving the app with no admin account.
     assert "touch /app/data/.initialized" in text
