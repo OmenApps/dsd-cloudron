@@ -1,0 +1,9 @@
+# Redacted `cloudron list` output - instance ids and subdomains are masked. See README.md.
+Id                                    Location                Manifest Id                              State
+------------------------------------  ----------------------  ---------------------------------------  -------
+00000000-0000-0000-0000-000000000001  blog.example.com        org.wordpress.cloudronapp@3.18.0         running
+00000000-0000-0000-0000-000000000002  files.example.com       net.jirafeau.cloudronapp@1.12.1          stopped
+00000000-0000-0000-0000-000000000003  pdf.example.com         stirlingpdf.frooodle.cloudronapp@2.44.0  stopped
+00000000-0000-0000-0000-000000000004  status.example.com      louislam.uptimekuma.app@2.6.2            running
+00000000-0000-0000-0000-000000000005  sync.example.com        net.syncthing.cloudronapp2@1.34.1        running
+00000000-0000-0000-0000-000000000006  data.example.com        io.baserow.cloudronapp@1.33.5            stopped
