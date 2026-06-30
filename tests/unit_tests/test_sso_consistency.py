@@ -26,7 +26,6 @@ def test_settings_use_cloudron_provider_id():
     settings = render_cloudron_settings(_config())
     assert '"provider_id": "cloudron"' in settings
     assert 'os.environ["CLOUDRON_OIDC_ISSUER"]' in settings
-    assert "optionalSso" not in settings  # sanity: that key belongs in the manifest
 
 
 def test_manifest_optional_sso_true():

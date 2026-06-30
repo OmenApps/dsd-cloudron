@@ -27,9 +27,13 @@ python manage.py deploy --location blog --automate-all   # config + install
 ```
 
 Infra addons (PostgreSQL, Redis, sendmail) are on by default. The app-intrusive
-ones are opt-in: `--celery` adds a Celery worker/beat, `--sso` adds Cloudron SSO
-via django-allauth. Useful flags: `--health-check-path`, `--memory-limit`,
-`--app-id`, `--force-overwrite`, `--no-redis`, `--no-sendmail`.
+ones are opt-in: `--celery` generates a Celery app module wired to the Redis
+broker; `--sso` renders the Cloudron OIDC addon and a django-allauth provider
+config and adds the dependency, then prints the steps to finish wiring allauth
+into `INSTALLED_APPS`/`urls.py` and run `migrate` (a project scaffolded with
+`dsd-cloudron new --sso` gets that wiring automatically). Useful flags:
+`--health-check-path`, `--memory-limit`, `--app-id`, `--force-overwrite`,
+`--no-redis`, `--no-sendmail`.
 
 ## Scaffold a new project
 
