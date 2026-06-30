@@ -52,6 +52,14 @@ def test_manifest_checklist_and_message():
     assert "admin" in m["postInstallMessage"]
 
 
+def test_manifest_postinstall_uses_sso_tags():
+    msg = _manifest()["postInstallMessage"]
+    assert "<nosso>" in msg
+    assert "</nosso>" in msg
+    assert "admin" in msg
+    assert "changeme123" not in msg   # no literal credential in the public manifest
+
+
 def test_manifest_version_and_author_passthrough():
     m = _manifest(version="2.1.0", author="ACME Corp")
     assert m["version"] == "2.1.0"

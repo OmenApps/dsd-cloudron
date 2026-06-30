@@ -241,10 +241,16 @@ def render_manifest(config):
             }
         },
         "postInstallMessage": (
-            "This app was configured with dsd-cloudron. A default admin account "
-            "was created (username `admin`, password `changeme123`). Sign in and "
-            "change the password immediately. See README-cloudron.md in the app "
-            "source for the full configuration control surface."
+            "This app was configured with dsd-cloudron. A local admin account "
+            "`admin` was created; its generated password is on the server at "
+            "/app/data/.initial_admin_password (read it with `cloudron exec`).\n\n"
+            "<nosso>Sign in at /admin/ with that account, then change the "
+            "password immediately.</nosso>\n\n"
+            "<sso>Sign in with your Cloudron account. The `admin` account above "
+            "is a local break-glass admin; use it (or `cloudron exec`) to promote "
+            "your Cloudron user in the Django admin.</sso>\n\n"
+            "See README-cloudron.md in the app source for the full configuration "
+            "control surface."
         ),
     }
     return json.dumps(manifest, indent=2) + "\n"
