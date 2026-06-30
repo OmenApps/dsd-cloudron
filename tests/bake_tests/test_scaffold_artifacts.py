@@ -38,6 +38,26 @@ def test_base_image_pinned(tmp_path):
     ) in dockerfile
 
 
+def test_root_url_serves_home(tmp_path):
+    # Without a root route a bare visit to the app root 404s; the scaffold wires a
+    # home view at "/" for every project.
+    project = _scaffold(tmp_path)
+    urls = (project / "my_shop" / "urls.py").read_text()
+    views = (project / "my_shop" / "core" / "views.py").read_text()
+    assert 'path("", home' in urls
+    assert "def home(" in views
+
+
+def test_sso_login_redirect_targets_the_home_route(tmp_path):
+    # SSO sets LOGIN_REDIRECT_URL = "/", so the post-login redirect only resolves
+    # because the home view is wired at "/"; a 404 here was the real-server symptom.
+    project = _scaffold(tmp_path, sso=True)
+    settings = (project / "my_shop" / "settings.py").read_text()
+    urls = (project / "my_shop" / "urls.py").read_text()
+    assert 'LOGIN_REDIRECT_URL = "/"' in settings
+    assert 'path("", home' in urls
+
+
 def test_oidc_addon_not_oauth(tmp_path):
     project = _scaffold(tmp_path, sso=True)
     manifest = json.loads((project / "CloudronManifest.json").read_text())
