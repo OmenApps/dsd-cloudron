@@ -35,12 +35,12 @@ broker, using the same `CLOUDRON_REDIS_URL` the rest of the app reads.
 There is no separate message broker to configure.
 
 Because of that, Redis cannot be turned off when Celery is on. Pairing
-`--celery` with `--no-redis` is rejected before anything is written:
-
-```text
---celery requires Redis (Celery uses the Redis addon as its broker);
-drop --no-redis or drop --celery.
-```
+`--celery` with `--no-redis` is rejected before anything is written, no
+matter which entry point you use: both `manage.py deploy` and
+`dsd-cloudron new` refuse the combination, with an error pointing out
+that Celery needs the Redis addon as its broker and telling you to drop
+one of the two flags. The exact wording differs between the two
+commands, but the rule is the same either way.
 
 Redis is enabled by default, so in practice this only comes up if you
 explicitly pass both flags together.

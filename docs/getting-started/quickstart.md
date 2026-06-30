@@ -39,8 +39,9 @@ it stays in backups until you do.
 
 ## Next steps
 
-If you have an existing Django project rather than a fresh one, the
-retrofit guide covers configuring it with `manage.py deploy` instead of
-`dsd-cloudron new`. Want users to sign in with their Cloudron account
-instead of a local password? That's the SSO guide. For updates, logs,
-and what actually persists between deploys, see the operating guide.
+If you have an existing Django project rather than a fresh one,
+{doc}`/guides/retrofit-existing-project` covers configuring it with
+`manage.py deploy` instead of `dsd-cloudron new`. Want users to sign in
+with their Cloudron account instead of a local password? See
+{doc}`/guides/enable-sso`. For updates, logs, and what actually persists
+between deploys, see {doc}`/guides/operating-and-updating`.

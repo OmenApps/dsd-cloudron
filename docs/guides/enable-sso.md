@@ -15,12 +15,18 @@ dsd-cloudron new "My App" --sso
 
 Either way, the deploy:
 
-- Declares the Cloudron `oidc` addon in `CloudronManifest.json`, with
-  `optionalSso: true` so the app still accepts the local admin account
-  alongside Cloudron sign-in.
+- Declares the Cloudron `oidc` addon in `CloudronManifest.json`.
 - Renders a `SOCIALACCOUNT_PROVIDERS` block in the generated Cloudron
   settings, pointed at the OIDC credentials Cloudron injects at runtime.
 - Adds `django-allauth` to your requirements.
+
+Every generated manifest sets `optionalSso: true`, whether or not you
+pass `--sso`. That setting only tells Cloudron the app will accept
+sign-in without requiring it - on its own it does nothing, since there's
+no `oidc` addon for Cloudron to offer unless `--sso` added one. The
+addon and the allauth provider config are what `--sso` actually
+contributes, and together they're what make Cloudron sign-in work
+alongside the local admin account.
 
 The login round-trip uses the redirect URI
 `/accounts/oidc/cloudron/login/callback/` - this is the standard allauth

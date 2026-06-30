@@ -33,8 +33,8 @@ itself and works the same way across every platform plugin. With it set,
 the command also commits the generated files and runs the Cloudron build
 and install for you. Every other flag covered on this page - `--location`,
 `--app-id`, `--memory-limit`, `--health-check-path`, `--celery`, `--sso` -
-belongs to dsd-cloudron specifically; the CLI reference lists the full set
-with defaults.
+belongs to dsd-cloudron specifically; the {doc}`/reference/cli` lists the
+full set with defaults.
 
 ## Addons: on by default, opt-in for the rest
 
@@ -49,14 +49,14 @@ so they stay opt-in:
 - `--celery` adds a worker and beat process, generates a `celery.py`
   module, wires it into your project's `__init__.py`, and adds `celery` to
   your requirements. It requires Redis, since Celery uses the Redis addon
-  as its broker.
+  as its broker. {doc}`enable-celery` has more detail on the flag.
 - `--sso` renders the Cloudron OIDC addon and a django-allauth provider
   configuration and adds the dependency, but you finish wiring allauth
   into `INSTALLED_APPS` and `urls.py` yourself - the success message after
   the deploy spells out the remaining steps. A project scaffolded with
   `dsd-cloudron new --sso` gets that wiring done automatically; retrofit
-  cannot safely edit your existing URLconf and app list for you. The SSO
-  guide covers the rest of the setup.
+  cannot safely edit your existing URLconf and app list for you.
+  {doc}`enable-sso` covers the rest of the setup.
 
 ## What gets written
 
@@ -65,8 +65,8 @@ supervisor configs, and nginx config, then appends a guarded settings
 block that imports the Cloudron-specific Django settings. It also adds
 the packages your configuration needs - `gunicorn` and `psycopg[binary]`
 always, plus `django-redis`, `celery[redis]`, or `django-allauth` when
-the matching flag is set. The generated-files reference describes each
-artifact in detail.
+the matching flag is set. {doc}`/reference/generated-files` describes
+each artifact in detail.
 
 ## Re-running the deploy
 
