@@ -15,3 +15,11 @@ packaging core.
 getting-started/installation
 getting-started/quickstart
 ```
+
+```{toctree}
+:caption: Guides
+:maxdepth: 2
+
+guides/retrofit-existing-project
+guides/scaffold-new-project
+```
