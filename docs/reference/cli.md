@@ -46,7 +46,9 @@ dsd-cloudron" argument group:
 
 `--celery`
 : Add a Celery worker and beat process, generate `<project>/celery.py`,
-  and add celery to requirements. See {doc}`/guides/enable-celery`.
+  and add celery to requirements. Celery's broker is the Redis addon, so
+  pairing `--celery` with `--no-redis` is rejected before anything is
+  written. See {doc}`/guides/enable-celery`.
 
 `--sso`
 : Render Cloudron OIDC config (the oidc addon and allauth provider

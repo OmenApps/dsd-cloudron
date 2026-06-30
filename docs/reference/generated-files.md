@@ -61,8 +61,12 @@ take effect on the next restart without a rebuild.
 On a retrofit, this file is appended to your project's settings with
 `from <project>.cloudron_settings import *`, using an absolute import so
 it resolves whether `settings.py` sits at the project root or inside a
-`settings/` subpackage. A scaffolded project ships with that same import
-already in place.
+`settings/` subpackage. A scaffolded project's `settings.py` instead ends
+with a relative, guarded import - `try: from .cloudron_settings import
+*`, catching only the case where that module itself is missing - so
+local development and tests run cleanly before the file exists. The form
+differs, but the net effect is the same: once `cloudron_settings.py` is
+generated, both load it.
 
 ## Dockerfile, `.dockerignore`, `start.sh`, `nginx.conf`, `supervisor/`
 
@@ -85,13 +89,19 @@ already in place.
 `start.sh`
 : Runs as root inside the container. Each start it creates the writable
   runtime directories, ensures a persistent `SECRET_KEY` exists under
-  `/app/data`, runs `chown -R cloudron:cloudron` on `/app/data`, collects
-  static files into `/run`, and runs `manage.py migrate` - on every
-  start, not only the first. First run only, gated on
-  `/app/data/.initialized`, it also creates a local `admin` superuser
-  with a generated password. It finishes by running the app's processes
-  as `cloudron` via `gosu` and `exec`-ing `supervisord`, so the
-  container's main process receives `SIGTERM` directly.
+  `/app/data`, and runs `chown -R cloudron:cloudron` on `/app/data` and
+  the run directories. It then collects static files and runs
+  `manage.py migrate` - on every start, not only the first - each via
+  `gosu cloudron:cloudron`. First run only, gated on
+  `/app/data/.initialized`, it creates a local `admin` superuser the
+  same way. It finishes by `exec`-ing `supervisord` directly, with no
+  `gosu`, so `supervisord` itself runs as root and becomes the
+  container's main process, receiving `SIGTERM` on stop. The
+  long-running processes still drop to `cloudron`: gunicorn and the
+  celery worker/beat each set `user=cloudron` in their supervisor
+  program stanza, and nginx drops its worker processes through the
+  `user cloudron;` directive in `nginx.conf` (its master process stays
+  root, per nginx convention).
 
 `nginx.conf`
 : Listens on `httpPort`, serves `/static/` from
