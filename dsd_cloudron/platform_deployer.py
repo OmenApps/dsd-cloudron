@@ -16,6 +16,16 @@ from .packaging import CloudronAppConfig
 from .plugin_config import plugin_config
 
 
+def _bare_name(requirement):
+    """Return a requirement's bare package name, without extras or a version.
+
+    django-simple-deploy records bare names (its parser stops at "["), so matching
+    a candidate like "psycopg[binary]" or "gunicorn>=21" against what is already
+    present has to compare on the bare "psycopg"/"gunicorn".
+    """
+    return re.split(r"[\[<>=!~ ]", requirement, maxsplit=1)[0].strip()
+
+
 class PlatformDeployer:
     def __init__(self):
         self.templates_path = Path(__file__).parent / "templates"
@@ -184,8 +194,15 @@ class PlatformDeployer:
             requirements.append("celery[redis]")
         if plugin_config.enable_sso:
             requirements.append("django-allauth")
-        self._added_requirements = requirements
-        plugin_utils.add_packages(requirements)
+        # Skip any requirement whose bare name django-simple-deploy already parsed
+        # from the user's requirements. core's dedup is an exact-string match that
+        # bracketed extras (psycopg[binary] vs bare psycopg) defeat, so a re-run
+        # would otherwise append a duplicate line every deploy. requirements is
+        # None until a real deploy populates it, hence the `or []`.
+        present = dsd_config.requirements or []
+        to_add = [r for r in requirements if _bare_name(r) not in present]
+        self._added_requirements = to_add
+        plugin_utils.add_packages(to_add)
 
     def _conclude_automate_all(self):
         if not dsd_config.automate_all:

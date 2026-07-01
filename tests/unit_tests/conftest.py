@@ -22,6 +22,7 @@ _DSD_ATTRS = (
     "deployed_project_name",
     "project_root",
     "settings_path",
+    "requirements",
     "stdout",
     # Not mutated by the current tests, but carried so a future deployer test
     # that touches one of these cannot leak it into the next test.
