@@ -33,3 +33,17 @@ if not _integration_harness_available():
 # the suite collects normally.
 if importlib.util.find_spec("pytest_cookies") is None:
     collect_ignore.append("bake_tests")
+
+
+def pytest_report_header(config):
+    notes = []
+    if "integration_tests" in collect_ignore:
+        notes.append(
+            "integration_tests SKIPPED (django-simple-deploy harness not importable)"
+        )
+    if "bake_tests" in collect_ignore:
+        notes.append("bake_tests SKIPPED (pytest-cookies not installed)")
+    notes.append(
+        "e2e_tests SKIPPED (collect_ignore; run deliberately with a real Cloudron)"
+    )
+    return "dsd-cloudron test tiers: " + "; ".join(notes) if notes else ""

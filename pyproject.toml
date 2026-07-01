@@ -74,6 +74,12 @@ packages = [
 ]
 include-package-data = true
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "skip_auto_dsd_call: provided by django-simple-deploy's integration-test harness",
+]
+
 [tool.black]
 # The golden snapshot fixtures and the integration reference files are byte-exact
 # render output, not source code; black must not reformat them or they stop

@@ -42,3 +42,12 @@ def test_pyproject_declares_mit_without_license_classifier():
     # `License ::` classifier, not only the OSI-approved family, so assert the
     # broad condition that actually breaks `python -m build`.
     assert "License ::" not in pyproject
+
+
+def test_pyproject_scopes_pytest_to_tests_dir():
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    assert "[tool.pytest.ini_options]" in pyproject
+    assert 'testpaths = ["tests"]' in pyproject
+    assert (
+        "skip_auto_dsd_call" in pyproject
+    )  # marker registered, no PytestUnknownMarkWarning
