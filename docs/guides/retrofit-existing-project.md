@@ -65,15 +65,23 @@ Each deploy writes the Cloudron manifest, Dockerfile, `start.sh`,
 supervisor configs, and nginx config, then appends a guarded settings
 block that imports the Cloudron-specific Django settings. It also adds
 the packages your configuration needs - `gunicorn` and `psycopg[binary]`
-always, plus `django-redis`, `celery[redis]`, or `django-allauth` when
-the matching flag is set. {doc}`/reference/generated-files` describes
+always, plus `django-redis`, `celery[redis]`, or `django-allauth[socialaccount]`
+when the matching flag is set. {doc}`/reference/generated-files` describes
 each artifact in detail.
 
 ## Re-running the deploy
 
 Re-running `manage.py deploy` is safe, but it is not silently idempotent.
-The settings block is guarded against being added twice - if one is
-already present, the command stops rather than appending a duplicate.
+How an existing settings block is handled depends on how you re-run:
+
+- Interactively (no flags), the command asks before replacing the block, so
+  a re-run cannot append a duplicate.
+- With `--force-overwrite`, the existing block is stripped and replaced
+  without prompting, so you still end up with exactly one block.
+- With `--automate-all` and no `--force-overwrite`, the command cannot
+  prompt, so it aborts cleanly and tells you to re-run interactively or pass
+  `--force-overwrite` rather than hanging.
+
 Rendered artifacts are skip-if-present: an existing `CloudronManifest.json`
 or `Dockerfile` is left alone unless you pass `--force-overwrite`, which
 regenerates them from your current flags.
@@ -99,6 +107,7 @@ regenerates them from your current flags.
 : Accept a self-signed certificate on that server.
 
 `--force-overwrite`
-: Regenerate artifacts that already exist.
+: Regenerate artifacts that already exist, and replace an existing Cloudron
+  settings block without prompting.
 
 See the CLI reference for the complete list with full descriptions.

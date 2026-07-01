@@ -18,7 +18,9 @@ Either way, the deploy:
 - Declares the Cloudron `oidc` addon in `CloudronManifest.json`.
 - Renders a `SOCIALACCOUNT_PROVIDERS` block in the generated Cloudron
   settings, pointed at the OIDC credentials Cloudron injects at runtime.
-- Adds `django-allauth` to your requirements.
+- Adds `django-allauth[socialaccount]` to your requirements. The
+  `socialaccount` extra pulls the OIDC runtime dependencies the generated
+  provider imports, so the app boots.
 
 Every generated manifest sets `optionalSso: true`, whether or not you
 pass `--sso`. That setting only tells Cloudron the app will accept

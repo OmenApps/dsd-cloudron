@@ -71,9 +71,11 @@ generated, both load it.
 ## Dockerfile, `.dockerignore`, `start.sh`, `nginx.conf`, `supervisor/`
 
 `Dockerfile`
-: Installs dependencies with the block matching your package manager
-  (`requirements.txt`, `pyproject.toml` for `poetry`/`uv`, or `Pipfile`
-  for `pipenv`), copies the project in, and stages the supervisor
+: Installs dependencies with uv. The greenfield/`uv` project installs from
+  `pyproject.toml`; a retrofit (`requirements.txt`, `poetry`, or `pipenv`
+  project) installs from a `requirements.txt` - generated at deploy time from
+  your lock for `poetry`/`pipenv` - so poetry/pipenv never run in the image. It
+  then copies the project in, and stages the supervisor
   configs, nginx config, and `start.sh`. The **final** build stage is
   `FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c`
   - earlier stages may be anything, but the shipped image must end on the

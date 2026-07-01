@@ -29,7 +29,8 @@ dsd-cloudron" argument group:
 : Path that returns a 2xx response when the app is healthy. Default `/`.
 
 `--force-overwrite`
-: Regenerate Cloudron artifacts that already exist.
+: Regenerate Cloudron artifacts that already exist, and replace an existing
+  Cloudron settings block without prompting.
 
 `--server`
 : Cloudron server domain, e.g. `my.example.com`. Selects which logged-in
