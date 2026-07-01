@@ -64,3 +64,12 @@ def test_contributing_doc_covers_test_tiers():
         "black",
     ):
         assert token in text
+
+
+def test_pyproject_lists_supported_django_versions():
+    # The django floor is 4.2 with no upper cap, so the classifiers must advertise
+    # the whole supported minor range, not 4.2 alone. Pin the set so the drift the
+    # single stale "4.2" classifier represented cannot silently recur.
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    for version in ("4.2", "5.0", "5.1", "5.2", "6.0"):
+        assert f"Framework :: Django :: {version}" in pyproject
