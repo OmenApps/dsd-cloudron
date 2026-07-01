@@ -113,7 +113,7 @@ class PlatformDeployer:
         if not dsd_config.automate_all and not plugin_config.force_overwrite:
             plugin_utils.check_settings(
                 "Cloudron",
-                "# dsd-cloudron settings.",
+                _SETTINGS_MARKER,
                 platform_msgs.cloudron_settings_found,
                 platform_msgs.cant_overwrite_settings,
             )
@@ -292,7 +292,10 @@ class PlatformDeployer:
         )
         try:
             output = plugin_utils.run_quick_command(cmd)
-        except FileNotFoundError as error:
+        except OSError as error:
+            # A missing (FileNotFoundError) or non-executable (PermissionError)
+            # export tool would otherwise surface as a raw traceback with the
+            # project already partially modified; abort cleanly instead.
             raise DSDCommandError(
                 platform_msgs.requirements_export_failed(manager, str(error))
             ) from error

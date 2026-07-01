@@ -170,7 +170,10 @@ def changes_summary(config, added_requirements):
             f"- Generated requirements.txt from your {config.pkg_manager} lock for "
             "the image build (the image installs from it with uv; it never runs "
             f"{config.pkg_manager}). If your dependencies changed recently, run "
-            f"`{config.pkg_manager} lock` and redeploy so the export is current."
+            f"`{config.pkg_manager} lock` and redeploy so the export is current. "
+            "Review requirements.txt before committing: it reflects your locked "
+            "versions as-is (including security-sensitive pins like gunicorn, and "
+            "any private index credentials your lock carries)."
         )
     return "\n".join(lines)
 
