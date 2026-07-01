@@ -3,19 +3,54 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      # black formatting is interpreter-independent, so check it once here rather
+      # than on every test leg. target-version is pinned in pyproject.toml.
+      - run: black --check .
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        # Pin Django per interpreter so the declared floor (django>=4.2) is
+        # actually exercised, and a spread of releases is covered, rather than
+        # leaving Django to whatever the resolver floats to for each Python.
+        include:
+          - python-version: "3.9"
+            django: "Django>=4.2,<4.3"
+          - python-version: "3.10"
+            django: "Django>=5.2,<5.3"
+          - python-version: "3.11"
+            django: ""
+          - python-version: "3.12"
+            django: ""
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: pip install -e ".[dev,bake]"
-      - run: black --check .
+      - name: Install the plugin and the pinned Django
+        env:
+          # Quoted below so the shell does not read >=/< as redirection.
+          DJANGO_SPEC: ${{ matrix.django }}
+        run: |
+          pip install -e ".[dev,bake]"
+          if [ -n "$DJANGO_SPEC" ]; then pip install "$DJANGO_SPEC"; fi
       - run: python -m pytest -q

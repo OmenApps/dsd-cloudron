@@ -81,6 +81,11 @@ markers = [
 ]
 
 [tool.black]
+# Pin the formatting targets to the supported interpreters. Without this black
+# infers the range from requires-python (>=3.9) up through its own newest known
+# Python, which both prints an AST-safety warning on older interpreters and lets
+# formatting drift between CI matrix legs.
+target-version = ["py39", "py310", "py311", "py312"]
 # The golden snapshot fixtures and the integration reference files are byte-exact
 # render output, not source code; black must not reformat them or they stop
 # matching the render functions and the deployed artifacts.
