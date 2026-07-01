@@ -9,9 +9,9 @@ requires-python = ">=3.9"
 dependencies = [
     "django>=4.2",
     "gunicorn",
-    "psycopg2-binary",
+    "psycopg[binary]",
 {% if cookiecutter.use_redis == "yes" %}    "django-redis",
-{% endif %}{% if cookiecutter.use_celery == "yes" %}    "celery",
+{% endif %}{% if cookiecutter.use_celery == "yes" %}    "celery[redis]",
 {% endif %}{% if cookiecutter.use_sso == "yes" %}    "django-allauth[mfa,socialaccount]",
 {% endif %}{% if cookiecutter.use_htmx == "yes" %}    "django-htmx",
     "django-crispy-forms",

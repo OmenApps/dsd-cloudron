@@ -202,3 +202,22 @@ def test_no_scheduler_addon(tmp_path):
     # render_all emits no scheduler addon, so no broken scheduled-job entries can
     # ship (the failure mode an earlier cookiecutter prototype had).
     assert "scheduler" not in manifest["addons"]
+
+
+def test_scaffold_pins_psycopg3_driver(tmp_path):
+    # The scaffold must ship the same Postgres driver the retrofit declares
+    # (psycopg3), so both paths run on one driver. Assert the TOML-quoted tokens.
+    project = _scaffold(tmp_path)
+    text = (project / "pyproject.toml").read_text()
+    assert '"psycopg[binary]"' in text
+    assert '"psycopg2-binary"' not in text
+
+
+def test_scaffold_celery_uses_redis_extra(tmp_path):
+    # Celery's broker is the Redis addon URL, so the scaffold must pull the redis
+    # transport explicitly, matching the retrofit's celery[redis]. The quoted token
+    # "celery" does not false-match inside "celery[redis]".
+    project = _scaffold(tmp_path, celery=True)
+    text = (project / "pyproject.toml").read_text()
+    assert '"celery[redis]"' in text
+    assert '"celery"' not in text
