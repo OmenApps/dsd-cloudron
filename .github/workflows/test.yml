@@ -28,9 +28,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pin Django per interpreter so the declared floor (django>=4.2) is
-        # actually exercised, and a spread of releases is covered, rather than
-        # leaving Django to whatever the resolver floats to for each Python.
+        # Pin Django per interpreter so every version the classifiers advertise
+        # (4.2, 5.2, 6.0) has a durable leg, rather than leaving Django to whatever
+        # the resolver floats to. The 3.11 leg floats to cover the latest release
+        # that still supports an older interpreter.
         include:
           - python-version: "3.9"
             django: "Django>=4.2,<4.3"
@@ -39,7 +40,7 @@ jobs:
           - python-version: "3.11"
             django: ""
           - python-version: "3.12"
-            django: ""
+            django: "Django>=6.0,<6.1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

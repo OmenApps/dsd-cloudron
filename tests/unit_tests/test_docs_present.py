@@ -67,9 +67,12 @@ def test_contributing_doc_covers_test_tiers():
 
 
 def test_pyproject_lists_supported_django_versions():
-    # The django floor is 4.2 with no upper cap, so the classifiers must advertise
-    # the whole supported minor range, not 4.2 alone. Pin the set so the drift the
-    # single stale "4.2" classifier represented cannot silently recur.
+    # Advertise only the Django versions a durable CI leg pins (the LTS releases
+    # and the current major). Do not claim the non-LTS 5.0/5.1: no CI leg exercises
+    # them and they are past upstream support. Pin the set both ways so neither an
+    # unadvertised-but-tested nor an advertised-but-untested drift can recur.
     pyproject = (ROOT / "pyproject.toml").read_text()
-    for version in ("4.2", "5.0", "5.1", "5.2", "6.0"):
+    for version in ("4.2", "5.2", "6.0"):
         assert f"Framework :: Django :: {version}" in pyproject
+    for version in ("5.0", "5.1"):
+        assert f"Framework :: Django :: {version}" not in pyproject
