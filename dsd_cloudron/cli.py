@@ -63,7 +63,10 @@ class PluginCLI:
         group.add_argument(
             "--force-overwrite",
             action="store_true",
-            help="Regenerate Cloudron artifacts that already exist.",
+            help=(
+                "Regenerate Cloudron artifacts that already exist, and replace an "
+                "existing Cloudron settings block without prompting."
+            ),
         )
         group.add_argument(
             "--server",

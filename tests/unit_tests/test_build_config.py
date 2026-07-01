@@ -154,3 +154,70 @@ def test_force_overwrite_strips_existing_block(tmp_path):
     # Strip is exact: everything before the marker is kept, the block and the
     # text after it are removed, so the later _modify_settings append yields one block.
     assert settings.read_text() == "SECRET_KEY = 'x'\n"
+
+
+def test_first_deploy_without_block_is_left_untouched(tmp_path):
+    # The common first-deploy path: no existing block. Even under --automate-all the
+    # method must not raise and must leave settings.py byte-for-byte untouched.
+    settings = tmp_path / "settings.py"
+    original = "SECRET_KEY = 'x'\nDEBUG = True\n"
+    settings.write_text(original)
+    dsd_config.unit_testing = False
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = True
+    plugin_config.force_overwrite = False
+    PlatformDeployer()._check_cloudron_settings()  # does not raise
+    assert settings.read_text() == original
+
+
+def test_force_overwrite_strips_block_without_automate_all(tmp_path):
+    # --force-overwrite is a standalone flag, not gated behind --automate-all. On
+    # its own it strips the existing block (skipping core's prompt).
+    settings = tmp_path / "settings.py"
+    settings.write_text(
+        "SECRET_KEY = 'x'\n# dsd-cloudron settings.\nFROM_CLOUDRON = True\n"
+    )
+    dsd_config.unit_testing = False
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = False
+    plugin_config.force_overwrite = True
+    PlatformDeployer()._check_cloudron_settings()  # does not raise, no prompt
+    assert settings.read_text() == "SECRET_KEY = 'x'\n"
+
+
+def test_marker_inside_a_string_is_not_treated_as_a_block(tmp_path):
+    # The marker text can legitimately appear mid-line in a comment or string. The
+    # force path strips without a prompt, so a bare substring match there would
+    # silently truncate settings.py; the line-anchored match must ignore it and
+    # treat the file as a first deploy.
+    settings = tmp_path / "settings.py"
+    original = 'NOTE = "# dsd-cloudron settings. not a real block"\nDEBUG = True\n'
+    settings.write_text(original)
+    dsd_config.unit_testing = False
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = True
+    plugin_config.force_overwrite = True
+    PlatformDeployer()._check_cloudron_settings()  # treats it as a first deploy
+    assert settings.read_text() == original
+
+
+def test_force_overwrite_then_modify_yields_single_block(tmp_path):
+    # Round trip: strip an existing block, then run the real append. Because core
+    # modify_settings_file only appends, the file must still end with exactly one
+    # settings block - the whole point of stripping the prior one ourselves.
+    settings = tmp_path / "settings.py"
+    settings.write_text(
+        "SECRET_KEY = 'x'\n\n# dsd-cloudron settings.\n"
+        "from myproj.cloudron_settings import *\n"
+    )
+    dsd_config.unit_testing = False
+    dsd_config.settings_path = settings
+    dsd_config.local_project_name = "myproj"
+    dsd_config.automate_all = True
+    plugin_config.force_overwrite = True
+    deployer = PlatformDeployer()
+    deployer._check_cloudron_settings()
+    deployer._modify_settings()
+    text = settings.read_text()
+    assert text.count("# dsd-cloudron settings.") == 1
+    assert "from myproj.cloudron_settings import *" in text

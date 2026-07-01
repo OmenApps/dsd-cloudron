@@ -26,6 +26,18 @@ def _bare_name(requirement):
     return re.split(r"[\[<>=!~ ]", requirement, maxsplit=1)[0].strip()
 
 
+# The settings block core writes always begins with this marker on its own line.
+_SETTINGS_MARKER = "# dsd-cloudron settings."
+# Match the marker line-anchored (unlike core, which substring-matches). The
+# force-overwrite path below strips without a prompt, so the marker text appearing
+# inside a comment or a string must not be mistaken for a real block and silently
+# truncate settings.py. Greedy .* strips back to the last marker, matching core's
+# behavior when a file already holds more than one block.
+_settings_block_re = re.compile(
+    r"(.*)^" + re.escape(_SETTINGS_MARKER) + r"$", re.DOTALL | re.MULTILINE
+)
+
+
 class PlatformDeployer:
     def __init__(self):
         self.templates_path = Path(__file__).parent / "templates"
@@ -93,16 +105,17 @@ class PlatformDeployer:
             return
 
         text = dsd_config.settings_path.read_text()
-        if "# dsd-cloudron settings." not in text:
-            # First deploy: nothing to overwrite or abort on.
+        match = _settings_block_re.match(text)
+        if match is None:
+            # First deploy (no marker on its own line): nothing to overwrite or
+            # abort on.
             return
         if plugin_config.force_overwrite:
             # core modify_settings_file only ever appends, so strip the prior block
             # ourselves - mirroring core check_settings on a confirmed overwrite -
-            # or the later append would leave a duplicate block that accumulates on
-            # every force re-run.
-            m = re.match(r"(.*)(# dsd-cloudron settings\.)(.*)", text, re.DOTALL)
-            dsd_config.settings_path.write_text(m.group(1))
+            # or the later append would leave a duplicate block. group(1) is
+            # everything before the block marker.
+            dsd_config.settings_path.write_text(match.group(1))
             return
         # --automate-all with no --force-overwrite: abort cleanly instead of
         # blocking on core's overwrite prompt.
