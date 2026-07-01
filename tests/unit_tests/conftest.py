@@ -14,27 +14,6 @@ import pytest
 from dsd_cloudron.plugin_config import PluginConfig, plugin_config
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
 
-_DSD_ATTRS = (
-    "unit_testing",
-    "automate_all",
-    "pkg_manager",
-    "local_project_name",
-    "deployed_project_name",
-    "project_root",
-    "settings_path",
-    "requirements",
-    "stdout",
-    # Not mutated by the current tests, but carried so a future deployer test
-    # that touches one of these cannot leak it into the next test.
-    "log_output",
-    "e2e_testing",
-    "region",
-    "use_shell",
-    "on_windows",
-    "on_macos",
-    "version",
-)
-
 
 @pytest.fixture(autouse=True)
 def reset_singletons():
@@ -42,13 +21,16 @@ def reset_singletons():
     for name, value in vars(fresh).items():
         setattr(plugin_config, name, value)
 
-    saved = {name: getattr(dsd_config, name, None) for name in _DSD_ATTRS}
-    # The unguarded file-writing steps call core's write_output, which writes to
-    # dsd_config.stdout whenever logging is not routed to the console. Outside a
-    # real deploy that attribute is None, so write_output would raise
-    # AttributeError in the offline suite. Point it at an in-memory sink for the
-    # duration of each test; the original value is restored below.
+    # Snapshot every dsd_config attribute rather than a hand-maintained allowlist,
+    # so a test that mutates a new attribute cannot silently leak it into the next
+    # test. The unguarded file-writing steps call core's write_output, which writes
+    # to dsd_config.stdout whenever logging is not routed to the console; outside a
+    # real deploy that is None, so point it at an in-memory sink for each test.
+    saved = dict(vars(dsd_config))
     dsd_config.stdout = io.StringIO()
     yield
+    for name in list(vars(dsd_config)):
+        if name not in saved:
+            delattr(dsd_config, name)
     for name, value in saved.items():
         setattr(dsd_config, name, value)
