@@ -13,7 +13,8 @@ These are byte-identical to what `PlatformDeployer` writes, because both go
 through the same render core (`packaging.render_all`). They were produced for the
 sample project package name `blog`:
 
-- `CloudronManifest.json`, `Dockerfile`, `poetry.Dockerfile`, `pipenv.Dockerfile`
+- `CloudronManifest.json`, `Dockerfile` (one Dockerfile for every retrofit
+  package manager: req_txt/poetry/pipenv all install from requirements.txt with uv)
 - `start.sh`, `nginx.conf`, `supervisor/gunicorn.conf`, `README-cloudron.md`
 - `blog/cloudron_settings.py`
 - `celery_sso.*` for the `--celery --sso` build: `celery_sso.CloudronManifest.json`,

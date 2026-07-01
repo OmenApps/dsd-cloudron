@@ -142,24 +142,11 @@ def _write(path, contents, result, force, executable=False):
 def _pip_install_block(pkg_manager):
     """The Dockerfile dependency-install snippet for the chosen package manager.
 
-    The non-req_txt blocks are first-draft and need validating against a real
-    Cloudron build by hand before release.
+    Two shapes, both uv. The greenfield/uv path installs from pyproject.toml (the
+    real-server-verified path). Every retrofit manager (req_txt/poetry/pipenv)
+    installs from a requirements.txt with uv - generated at deploy time from the
+    user's lock for poetry/pipenv - so poetry/pipenv never run inside the image.
     """
-    if pkg_manager == "poetry":
-        return (
-            "COPY pyproject.toml /app/code/pyproject.toml\n"
-            "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip poetry && \\\n"
-            "    cd /app/code && \\\n"
-            "    poetry config virtualenvs.create false && \\\n"
-            "    poetry install --only main --no-root"
-        )
-    if pkg_manager == "pipenv":
-        return (
-            "COPY Pipfile /app/code/Pipfile\n"
-            "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip pipenv && \\\n"
-            "    cd /app/code && \\\n"
-            "    VIRTUAL_ENV=$VENV_PATH pipenv install --skip-lock"
-        )
     if pkg_manager == "uv":
         return (
             "COPY pyproject.toml /app/code/pyproject.toml\n"
@@ -167,11 +154,11 @@ def _pip_install_block(pkg_manager):
             "    cd /app/code && \\\n"
             "    uv pip install --python $VENV_PATH/bin/python -r pyproject.toml"
         )
-    # req_txt (default)
+    # req_txt / poetry / pipenv: install from requirements.txt with uv.
     return (
         "COPY requirements.txt /app/code/requirements.txt\n"
-        "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \\\n"
-        "    $VENV_PATH/bin/pip install --no-cache-dir -r /app/code/requirements.txt"
+        "RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip uv && \\\n"
+        "    uv pip install --python $VENV_PATH/bin/python -r /app/code/requirements.txt"
     )
 
 

@@ -16,8 +16,8 @@ RUN apt-get update && \
 RUN python3 -m venv $VENV_PATH
 
 COPY requirements.txt /app/code/requirements.txt
-RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \
-    $VENV_PATH/bin/pip install --no-cache-dir -r /app/code/requirements.txt
+RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip uv && \
+    uv pip install --python $VENV_PATH/bin/python -r /app/code/requirements.txt
 
 COPY . /app/code/
 

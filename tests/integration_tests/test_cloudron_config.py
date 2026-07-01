@@ -24,22 +24,9 @@ def test_manifest(tmp_project):
 
 
 def test_dockerfile(tmp_project, pkg_manager):
-    if pkg_manager == "req_txt":
-        hf.check_reference_file(tmp_project, "Dockerfile", "dsd-cloudron")
-    elif pkg_manager == "poetry":
-        hf.check_reference_file(
-            tmp_project,
-            "Dockerfile",
-            "dsd-cloudron",
-            reference_filename="poetry.Dockerfile",
-        )
-    elif pkg_manager == "pipenv":
-        hf.check_reference_file(
-            tmp_project,
-            "Dockerfile",
-            "dsd-cloudron",
-            reference_filename="pipenv.Dockerfile",
-        )
+    # Every retrofit manager (req_txt/poetry/pipenv) installs from requirements.txt
+    # with uv, so they all render the one Dockerfile reference.
+    hf.check_reference_file(tmp_project, "Dockerfile", "dsd-cloudron")
 
 
 def test_start_sh(tmp_project):

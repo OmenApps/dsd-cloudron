@@ -37,22 +37,25 @@ def test_no_unrendered_template_sentinel():
 def test_req_txt_install_block():
     text = _dockerfile(pkg_manager="req_txt")
     assert "COPY requirements.txt" in text
-    assert "pip install --no-cache-dir -r" in text
+    # Retrofits install with uv from requirements.txt, not pip.
+    assert "uv pip install" in text
+    assert "-r /app/code/requirements.txt" in text
 
 
-def test_poetry_install_block():
-    text = _dockerfile(pkg_manager="poetry")
-    assert "poetry" in text
-
-
-def test_pipenv_install_block():
-    text = _dockerfile(pkg_manager="pipenv")
-    assert "pipenv" in text
+def test_retrofit_managers_share_one_dockerfile():
+    # req_txt/poetry/pipenv all install from requirements.txt with uv, so they
+    # render an identical Dockerfile; only the greenfield uv (pyproject) path differs.
+    req_txt = _dockerfile(pkg_manager="req_txt")
+    assert _dockerfile(pkg_manager="poetry") == req_txt
+    assert _dockerfile(pkg_manager="pipenv") == req_txt
+    assert _dockerfile(pkg_manager="uv") != req_txt
 
 
 def test_uv_install_block():
     text = _dockerfile(pkg_manager="uv")
     assert "uv pip install" in text
+    # The greenfield/uv path installs from pyproject.toml, not requirements.txt.
+    assert "-r pyproject.toml" in text
 
 
 def test_relocates_supervisord_log_off_readonly_layer():
@@ -62,8 +65,8 @@ def test_relocates_supervisord_log_off_readonly_layer():
 def test_install_block_not_html_escaped():
     # Regression guard: the install block is substituted as a {{ variable }} and
     # contains shell "&&". With autoescape on (the default for a hand-built
-    # Context) it would become "&amp;&amp;" and break the build. The shell
-    # operator must survive verbatim.
+    # Context) it would become "&amp;&amp;" and break the build. Both surviving
+    # blocks (requirements.txt and pyproject) must keep the operator verbatim.
     for manager in ("req_txt", "poetry", "pipenv", "uv"):
         text = _dockerfile(pkg_manager=manager)
         assert "&amp;" not in text
