@@ -37,6 +37,19 @@ _settings_block_re = re.compile(
     r"(.*)^" + re.escape(_SETTINGS_MARKER) + r"$", re.DOTALL | re.MULTILINE
 )
 
+# Tested version floors, keyed by bare package name. Attached to the retrofit's
+# generated requirements so a future `cloudron update` rebuild resolves a
+# known-good release rather than an older, untested one. gunicorn's floor is the
+# request-smuggling fix (CVE-2024-1135); the rest match the tested floors declared
+# in the dsd-cloudron pyproject.toml bake extra.
+_REQUIREMENT_FLOORS = {
+    "gunicorn": ">=22.0",
+    "psycopg": ">=3.1",
+    "django-redis": ">=5.4",
+    "celery": ">=5.3",
+    "django-allauth": ">=65",
+}
+
 
 class PlatformDeployer:
     def __init__(self):
@@ -215,7 +228,12 @@ class PlatformDeployer:
         present = dsd_config.requirements or []
         to_add = [r for r in requirements if _bare_name(r) not in present]
         self._added_requirements = to_add
-        plugin_utils.add_packages(to_add)
+        # add_package takes a per-package version; add_packages (plural) does not.
+        # Attach the tested floor for each so the generated requirement is pinned.
+        for name in to_add:
+            plugin_utils.add_package(
+                name, version=_REQUIREMENT_FLOORS.get(_bare_name(name), "")
+            )
 
     def _conclude_automate_all(self):
         if not dsd_config.automate_all:
