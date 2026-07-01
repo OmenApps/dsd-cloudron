@@ -66,6 +66,21 @@ def partial_write_failed(error):
     )
 
 
+def noninteractive_settings_conflict():
+    """Abort message when an unattended re-deploy meets an existing settings block.
+
+    Under --automate-all core cannot prompt for overwrite permission (its prompt
+    reads stdin), so a prior Cloudron settings block would otherwise hang or crash
+    the run. Tell the user the two ways forward.
+    """
+    return (
+        "\nA Cloudron settings block already exists in your settings file, and "
+        "--automate-all cannot prompt to overwrite it.\n"
+        "Re-run interactively (without --automate-all) to be asked, or pass "
+        "--force-overwrite to replace the existing block.\n"
+    )
+
+
 def unsafe_cli_value(flag, value):
     """Rejection message for a CLI value that is unsafe to interpolate.
 

@@ -1,5 +1,6 @@
 """Cloudron-specific retrofit deployment, modeled on dsd-flyio."""
 
+import re
 from pathlib import Path
 
 from django_simple_deploy.management.commands.utils import plugin_utils
@@ -66,12 +67,36 @@ class PlatformDeployer:
         )
 
     def _check_cloudron_settings(self):
-        plugin_utils.check_settings(
-            "Cloudron",
-            "# dsd-cloudron settings.",
-            platform_msgs.cloudron_settings_found,
-            platform_msgs.cant_overwrite_settings,
-        )
+        # Decide before core's interactive prompt runs. core check_settings ends in
+        # get_confirmation -> input(), which only auto-answers under unit/e2e
+        # testing (not under --automate-all), so an unattended re-deploy over an
+        # existing block would hang or raise EOFError. Branch on the flags first,
+        # and only read settings.py in the automate/force arms so the interactive
+        # default still delegates straight to core.
+        if not dsd_config.automate_all and not plugin_config.force_overwrite:
+            plugin_utils.check_settings(
+                "Cloudron",
+                "# dsd-cloudron settings.",
+                platform_msgs.cloudron_settings_found,
+                platform_msgs.cant_overwrite_settings,
+            )
+            return
+
+        text = dsd_config.settings_path.read_text()
+        if "# dsd-cloudron settings." not in text:
+            # First deploy: nothing to overwrite or abort on.
+            return
+        if plugin_config.force_overwrite:
+            # core modify_settings_file only ever appends, so strip the prior block
+            # ourselves - mirroring core check_settings on a confirmed overwrite -
+            # or the later append would leave a duplicate block that accumulates on
+            # every force re-run.
+            m = re.match(r"(.*)(# dsd-cloudron settings\.)(.*)", text, re.DOTALL)
+            dsd_config.settings_path.write_text(m.group(1))
+            return
+        # --automate-all with no --force-overwrite: abort cleanly instead of
+        # blocking on core's overwrite prompt.
+        raise DSDCommandError(platform_msgs.noninteractive_settings_conflict())
 
     def _build_config(self):
         app_id = plugin_config.app_id or f"com.example.{dsd_config.local_project_name}"

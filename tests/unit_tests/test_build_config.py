@@ -121,3 +121,36 @@ def test_check_cloudron_settings_aborts_on_existing_block(tmp_path, monkeypatch)
 
     with pytest.raises(DSDCommandError):
         PlatformDeployer()._check_cloudron_settings()
+
+
+def test_existing_block_with_automate_all_aborts_cleanly(tmp_path):
+    # A non-interactive re-deploy over an existing block must abort with a clean
+    # DSDCommandError, not hang or EOFError on core's interactive input() prompt.
+    settings = tmp_path / "settings.py"
+    settings.write_text(
+        "SECRET_KEY = 'x'\n# dsd-cloudron settings.\nFROM_CLOUDRON = True\n"
+    )
+    dsd_config.unit_testing = False
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = True
+    plugin_config.force_overwrite = False
+    with pytest.raises(DSDCommandError) as exc:
+        PlatformDeployer()._check_cloudron_settings()
+    assert "--force-overwrite" in str(exc.value)
+
+
+def test_force_overwrite_strips_existing_block(tmp_path):
+    # With --force-overwrite the deployer strips the prior block itself (core
+    # modify_settings_file only appends), so the later append yields one block.
+    settings = tmp_path / "settings.py"
+    settings.write_text(
+        "SECRET_KEY = 'x'\n# dsd-cloudron settings.\nFROM_CLOUDRON = True\n"
+    )
+    dsd_config.unit_testing = False
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = True
+    plugin_config.force_overwrite = True
+    PlatformDeployer()._check_cloudron_settings()  # does not raise
+    # Strip is exact: everything before the marker is kept, the block and the
+    # text after it are removed, so the later _modify_settings append yields one block.
+    assert settings.read_text() == "SECRET_KEY = 'x'\n"
