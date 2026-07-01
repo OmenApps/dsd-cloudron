@@ -35,7 +35,8 @@ if importlib.util.find_spec("pytest_cookies") is None:
     collect_ignore.append("bake_tests")
 
 
-def pytest_report_header(config):
+def _tier_skip_notes():
+    """One human-readable note per test tier that will not run this session."""
     notes = []
     if "integration_tests" in collect_ignore:
         notes.append(
@@ -46,4 +47,14 @@ def pytest_report_header(config):
     notes.append(
         "e2e_tests SKIPPED (collect_ignore; run deliberately with a real Cloudron)"
     )
-    return "dsd-cloudron test tiers: " + "; ".join(notes) if notes else ""
+    return notes
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    # Report which tiers were collect-ignored via the terminal summary rather than
+    # pytest_report_header: the header is suppressed under -q (verbosity < 0), which
+    # is how CI runs pytest, and CI is exactly where a silently skipped tier must
+    # stay visible. The terminal summary prints regardless of -q.
+    terminalreporter.write_line(
+        "dsd-cloudron test tiers: " + "; ".join(_tier_skip_notes())
+    )
