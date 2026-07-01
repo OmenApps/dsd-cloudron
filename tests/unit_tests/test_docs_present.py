@@ -51,3 +51,16 @@ def test_pyproject_scopes_pytest_to_tests_dir():
     assert (
         "skip_auto_dsd_call" in pyproject
     )  # marker registered, no PytestUnknownMarkWarning
+
+
+def test_contributing_doc_covers_test_tiers():
+    text = (ROOT / "CONTRIBUTING.md").read_text()
+    for token in (
+        "unit_tests",
+        "integration_tests",
+        "bake_tests",
+        "e2e_tests",
+        "python -m pytest",
+        "black",
+    ):
+        assert token in text
