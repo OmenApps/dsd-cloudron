@@ -38,7 +38,7 @@ time the suite runs (per the plan's bootstrap step):
 - `blog/settings.py` - the sample `settings.py` with the appended
   `# dsd-cloudron settings.` block and `from blog.cloudron_settings import *`.
 - `requirements.txt` - the sample requirements with `gunicorn>=22.0`,
-  `psycopg[binary]>=3.1`, `django-redis>=5.4` added (each carrying its tested
+  `psycopg[binary]>=3.1.12`, `django-redis>=5.4` added (each carrying its tested
   version floor) and the `django-simple-deploy=={current-version}` substitution so
   the `context` interpolation in `test_requirements_txt` matches.
 

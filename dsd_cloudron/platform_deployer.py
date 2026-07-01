@@ -40,11 +40,13 @@ _settings_block_re = re.compile(
 # Tested version floors, keyed by bare package name. Attached to the retrofit's
 # generated requirements so a future `cloudron update` rebuild resolves a
 # known-good release rather than an older, untested one. gunicorn's floor is the
-# request-smuggling fix (CVE-2024-1135); the rest match the tested floors declared
-# in the dsd-cloudron pyproject.toml bake extra.
+# request-smuggling fix (CVE-2024-1135); psycopg's is Django's own enforced
+# minimum for the postgresql backend (Django 6.0 requires psycopg 3.1.12+); the
+# celery/django-redis/django-allauth floors match the dsd-cloudron pyproject.toml
+# bake extra.
 _REQUIREMENT_FLOORS = {
     "gunicorn": ">=22.0",
-    "psycopg": ">=3.1",
+    "psycopg": ">=3.1.12",
     "django-redis": ">=5.4",
     "celery": ">=5.3",
     "django-allauth": ">=65",
@@ -219,7 +221,10 @@ class PlatformDeployer:
         if plugin_config.enable_celery:
             requirements.append("celery[redis]")
         if plugin_config.enable_sso:
-            requirements.append("django-allauth")
+            # The socialaccount extra pulls requests/oauthlib/pyjwt, which the
+            # generated openid_connect provider imports at startup; bare
+            # django-allauth would crash the SSO app on boot.
+            requirements.append("django-allauth[socialaccount]")
         # Skip any requirement whose bare name django-simple-deploy already parsed
         # from the user's requirements. core's dedup is an exact-string match that
         # bracketed extras (psycopg[binary] vs bare psycopg) defeat, so a re-run

@@ -16,7 +16,7 @@ def test_base_requirements(monkeypatch):
     plugin_config.enable_celery = False
     plugin_config.enable_sso = False
     PlatformDeployer()._add_requirements()
-    assert calls == [("gunicorn", ">=22.0"), ("psycopg[binary]", ">=3.1")]
+    assert calls == [("gunicorn", ">=22.0"), ("psycopg[binary]", ">=3.1.12")]
 
 
 def test_all_optional_requirements(monkeypatch):
@@ -35,10 +35,10 @@ def test_all_optional_requirements(monkeypatch):
     # extra package is caught.
     assert calls == [
         ("gunicorn", ">=22.0"),
-        ("psycopg[binary]", ">=3.1"),
+        ("psycopg[binary]", ">=3.1.12"),
         ("django-redis", ">=5.4"),
         ("celery[redis]", ">=5.3"),
-        ("django-allauth", ">=65"),
+        ("django-allauth[socialaccount]", ">=65"),
     ]
 
 
