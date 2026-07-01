@@ -139,20 +139,22 @@ def test_existing_block_with_automate_all_aborts_cleanly(tmp_path):
     assert "--force-overwrite" in str(exc.value)
 
 
-def test_force_overwrite_strips_existing_block(tmp_path):
-    # With --force-overwrite the deployer strips the prior block itself (core
-    # modify_settings_file only appends), so the later append yields one block.
+@pytest.mark.parametrize("automate_all", [True, False])
+def test_force_overwrite_strips_existing_block(tmp_path, automate_all):
+    # --force-overwrite strips the prior block itself (core modify_settings_file
+    # only appends) without prompting, whether or not --automate-all is set: the
+    # flag is inert on this path. Parametrized to pin that inertness. The strip is
+    # exact - everything before the marker is kept, the block and the text after it
+    # removed - so the later _modify_settings append yields one block.
     settings = tmp_path / "settings.py"
     settings.write_text(
         "SECRET_KEY = 'x'\n# dsd-cloudron settings.\nFROM_CLOUDRON = True\n"
     )
     dsd_config.unit_testing = False
     dsd_config.settings_path = settings
-    dsd_config.automate_all = True
+    dsd_config.automate_all = automate_all
     plugin_config.force_overwrite = True
-    PlatformDeployer()._check_cloudron_settings()  # does not raise
-    # Strip is exact: everything before the marker is kept, the block and the
-    # text after it are removed, so the later _modify_settings append yields one block.
+    PlatformDeployer()._check_cloudron_settings()  # does not raise, no prompt
     assert settings.read_text() == "SECRET_KEY = 'x'\n"
 
 
@@ -168,21 +170,6 @@ def test_first_deploy_without_block_is_left_untouched(tmp_path):
     plugin_config.force_overwrite = False
     PlatformDeployer()._check_cloudron_settings()  # does not raise
     assert settings.read_text() == original
-
-
-def test_force_overwrite_strips_block_without_automate_all(tmp_path):
-    # --force-overwrite is a standalone flag, not gated behind --automate-all. On
-    # its own it strips the existing block (skipping core's prompt).
-    settings = tmp_path / "settings.py"
-    settings.write_text(
-        "SECRET_KEY = 'x'\n# dsd-cloudron settings.\nFROM_CLOUDRON = True\n"
-    )
-    dsd_config.unit_testing = False
-    dsd_config.settings_path = settings
-    dsd_config.automate_all = False
-    plugin_config.force_overwrite = True
-    PlatformDeployer()._check_cloudron_settings()  # does not raise, no prompt
-    assert settings.read_text() == "SECRET_KEY = 'x'\n"
 
 
 def test_marker_inside_a_string_is_not_treated_as_a_block(tmp_path):

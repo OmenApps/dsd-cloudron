@@ -23,9 +23,10 @@ def test_manifest(tmp_project):
     hf.check_reference_file(tmp_project, "CloudronManifest.json", "dsd-cloudron")
 
 
-def test_dockerfile(tmp_project, pkg_manager):
+def test_dockerfile(tmp_project):
     # Every retrofit manager (req_txt/poetry/pipenv) installs from requirements.txt
-    # with uv, so they all render the one Dockerfile reference.
+    # with uv, so they all render the one Dockerfile reference. tmp_project is
+    # parametrized over pkg_manager upstream, so this still runs once per manager.
     hf.check_reference_file(tmp_project, "Dockerfile", "dsd-cloudron")
 
 
