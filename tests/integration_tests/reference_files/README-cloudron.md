@@ -23,13 +23,15 @@ ARE the configuration control surface - edit them and re-deploy.
 
 ## Required packages
 
-The generated config imports packages your project must have installed
-(dsd-cloudron's deploy step adds them to your requirements): `gunicorn` and a
-PostgreSQL driver (`psycopg[binary]`) always; `django-redis` when Redis is
-enabled; `celery` when Celery is enabled; `django-allauth` (with its
-`openid_connect` provider wired into `INSTALLED_APPS`, `AUTHENTICATION_BACKENDS`,
-and your urls) when SSO is enabled. If a needed package is missing, the image
-builds but the app fails to start.
+The generated config imports packages your project must have installed. The
+deploy step ensures they end up in the `requirements.txt` the image builds from -
+adding them directly for a requirements.txt project, or writing a `requirements.txt`
+exported from your lock for a Poetry or Pipenv project. The packages are
+`gunicorn` and a PostgreSQL driver (`psycopg[binary]`) always; `django-redis` when
+Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[socialaccount]`
+(with its `openid_connect` provider wired into `INSTALLED_APPS`,
+`AUTHENTICATION_BACKENDS`, and your urls) when SSO is enabled. If a needed package
+is missing, the image builds but the app fails to start.
 
 ## Deploy and iterate
 
@@ -43,6 +45,24 @@ cloudron logs --app <subdomain> -f  # tail logs
 
 `/app/data` and the Postgres/Redis addons persist across updates. `migrate` runs
 on every start, so new migrations apply automatically.
+
+## First sign-in
+
+A local `admin` superuser is created on the first install. Its password is
+generated per install and saved on the server at
+`/app/data/.initial_admin_password`. Retrieve it with:
+
+```bash
+cloudron exec --app <subdomain> -- cat /app/data/.initial_admin_password
+```
+
+Sign in at `/admin/`, change the password, then delete
+`/app/data/.initial_admin_password` - it persists in backups until you do. With
+SSO enabled, sign in with your Cloudron account instead; the local `admin` is a
+break-glass account you can use to promote your Cloudron user in the Django
+admin. The default account assumes the standard Django user model
+(`USERNAME_FIELD = "username"`); a project with a custom user model should create
+its superuser manually.
 
 ## Resource tuning
 

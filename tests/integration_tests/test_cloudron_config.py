@@ -77,4 +77,9 @@ def test_requirements_txt(tmp_project, pkg_manager, tmp_path, dsd_version):
             tmp_path=tmp_path,
         )
     else:
-        assert not (tmp_project / "requirements.txt").exists()
+        # poetry/pipenv now generate a requirements.txt for the image build. The
+        # export subprocess is skipped under unit_testing, so the file holds just
+        # the deploy deps (default build: redis on, celery/sso off).
+        generated = (tmp_project / "requirements.txt").read_text()
+        for dep in ("gunicorn", "psycopg[binary]", "django-redis"):
+            assert dep in generated

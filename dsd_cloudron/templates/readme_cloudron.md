@@ -23,13 +23,15 @@ ARE the configuration control surface - edit them and re-deploy.
 
 ## Required packages
 
-The generated config imports packages your project must have installed
-(dsd-cloudron's deploy step adds them to your requirements): `gunicorn` and a
-PostgreSQL driver (`psycopg[binary]`) always; `django-redis` when Redis is
-enabled; `celery` when Celery is enabled; `django-allauth` (with its
-`openid_connect` provider wired into `INSTALLED_APPS`, `AUTHENTICATION_BACKENDS`,
-and your urls) when SSO is enabled. If a needed package is missing, the image
-builds but the app fails to start.
+The generated config imports packages your project must have installed. The
+deploy step ensures they end up in the `requirements.txt` the image builds from -
+adding them directly for a requirements.txt project, or writing a `requirements.txt`
+exported from your lock for a Poetry or Pipenv project. The packages are
+`gunicorn` and a PostgreSQL driver (`psycopg[binary]`) always; `django-redis` when
+Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[socialaccount]`
+(with its `openid_connect` provider wired into `INSTALLED_APPS`,
+`AUTHENTICATION_BACKENDS`, and your urls) when SSO is enabled. If a needed package
+is missing, the image builds but the app fails to start.
 
 ## Deploy and iterate
 

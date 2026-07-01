@@ -211,34 +211,100 @@ class PlatformDeployer:
         )
 
     def _add_requirements(self):
-        # psycopg[binary] is psycopg3 (native in Django 4.2+) and matches what
-        # README-cloudron.md tells the user is installed. celery[redis] pulls the
-        # redis transport explicitly rather than leaning on django-redis to
-        # supply the client.
+        # The deploy dependencies the generated config needs, on top of whatever
+        # the user already depends on. psycopg[binary] is psycopg3 (native in
+        # Django 4.2+); celery[redis] pulls the redis broker transport; the allauth
+        # socialaccount extra pulls the OIDC runtime deps the provider imports.
         requirements = ["gunicorn", "psycopg[binary]"]
         if plugin_config.enable_redis:
             requirements.append("django-redis")
         if plugin_config.enable_celery:
             requirements.append("celery[redis]")
         if plugin_config.enable_sso:
-            # The socialaccount extra pulls requests/oauthlib/pyjwt, which the
-            # generated openid_connect provider imports at startup; bare
-            # django-allauth would crash the SSO app on boot.
             requirements.append("django-allauth[socialaccount]")
-        # Skip any requirement whose bare name django-simple-deploy already parsed
-        # from the user's requirements. core's dedup is an exact-string match that
-        # bracketed extras (psycopg[binary] vs bare psycopg) defeat, so a re-run
-        # would otherwise append a duplicate line every deploy. requirements is
-        # None until a real deploy populates it, hence the `or []`.
+
+        if dsd_config.pkg_manager in ("poetry", "pipenv"):
+            # These images install from a requirements.txt exported from the user's
+            # own lock, so poetry/pipenv never run inside the image (avoiding the
+            # optional-group and stale-lock traps of installing them in-image).
+            self._generate_requirements_file(requirements)
+            return
+
+        # req_txt: dsd-cloudron owns requirements.txt, so add each dep through core
+        # with its tested floor. Skip any bare name already present: core's dedup is
+        # an exact-string match that bracketed extras (psycopg[binary] vs bare
+        # psycopg) defeat, so a re-run would otherwise append a duplicate every
+        # deploy. requirements is None until a real deploy populates it (the or []).
         present = dsd_config.requirements or []
         to_add = [r for r in requirements if _bare_name(r) not in present]
         self._added_requirements = to_add
         # add_package takes a per-package version; add_packages (plural) does not.
-        # Attach the tested floor for each so the generated requirement is pinned.
         for name in to_add:
             plugin_utils.add_package(
                 name, version=_REQUIREMENT_FLOORS.get(_bare_name(name), "")
             )
+
+    def _generate_requirements_file(self, requirements):
+        """Write requirements.txt for a poetry/pipenv retrofit image.
+
+        Export the user's locked graph, then append the deploy deps the export does
+        not already cover - without floors, since the export already pins the user's
+        resolved graph and a floor could make the set unsatisfiable.
+        """
+        exported = "" if dsd_config.unit_testing else self._export_locked_requirements()
+
+        present = set()
+        for line in exported.splitlines():
+            line = line.strip()
+            # Skip blanks, comments, and pip option/editable lines (-e, --hash).
+            if not line or line.startswith(("#", "-")):
+                continue
+            present.add(_bare_name(line))
+
+        appended = [r for r in requirements if _bare_name(r) not in present]
+        # If Celery is on but celery is already locked, celery[redis] was skipped
+        # above; add a bare redis so the broker transport library is still present.
+        if (
+            plugin_config.enable_celery
+            and "celery" in present
+            and "redis" not in present
+        ):
+            appended.append("redis")
+        self._added_requirements = appended
+
+        body = exported.rstrip("\n")
+        lines = ([body] if body else []) + appended
+        req_path = dsd_config.project_root / "requirements.txt"
+        req_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        plugin_utils.write_output("  Wrote requirements.txt for the Cloudron image")
+
+    def _export_locked_requirements(self):
+        """Return the user's locked dependencies as requirements.txt text.
+
+        core run_quick_command runs with no shell on Linux, so we capture stdout
+        and write it in Python rather than shell-redirecting the export.
+        """
+        manager = dsd_config.pkg_manager
+        cmd = (
+            "poetry export --only main --without-hashes"
+            if manager == "poetry"
+            else "pipenv requirements"
+        )
+        try:
+            output = plugin_utils.run_quick_command(cmd)
+        except FileNotFoundError as error:
+            raise DSDCommandError(
+                platform_msgs.requirements_export_failed(manager, str(error))
+            ) from error
+        stderr = (output.stderr or b"").decode("utf-8", errors="replace")
+        if output.returncode != 0:
+            raise DSDCommandError(
+                platform_msgs.requirements_export_failed(manager, stderr)
+            )
+        if stderr.strip():
+            # poetry warns to stderr when the lock is stale; surface it.
+            plugin_utils.write_output(stderr)
+        return (output.stdout or b"").decode("utf-8", errors="replace")
 
     def _conclude_automate_all(self):
         if not dsd_config.automate_all:

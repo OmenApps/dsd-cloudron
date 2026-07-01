@@ -66,6 +66,25 @@ def partial_write_failed(error):
     )
 
 
+def requirements_export_failed(manager, detail):
+    """Abort message when exporting the locked requirements for the image fails.
+
+    poetry 2.x ships `export` only via poetry-plugin-export, and `pipenv
+    requirements` needs a recent pipenv. Name the remedy so the user can fix it and
+    re-run rather than seeing a raw subprocess error.
+    """
+    remedy = (
+        "add the export plugin with `poetry self add poetry-plugin-export`"
+        if manager == "poetry"
+        else "upgrade pipenv (`pipenv requirements` needs a recent version)"
+    )
+    return (
+        f"\nCould not export your {manager} dependencies to a requirements file "
+        f"for the Cloudron image build:\n{detail}\n"
+        f"Fix it ({remedy}) and re-run the deploy.\n"
+    )
+
+
 def noninteractive_settings_conflict():
     """Abort message when an unattended re-deploy meets an existing settings block.
 
@@ -146,6 +165,13 @@ def changes_summary(config, added_requirements):
     ]
     if added_requirements:
         lines.append(f"- Added requirements: {', '.join(added_requirements)}.")
+    if config.pkg_manager in ("poetry", "pipenv"):
+        lines.append(
+            f"- Generated requirements.txt from your {config.pkg_manager} lock for "
+            "the image build (the image installs from it with uv; it never runs "
+            f"{config.pkg_manager}). If your dependencies changed recently, run "
+            f"`{config.pkg_manager} lock` and redeploy so the export is current."
+        )
     return "\n".join(lines)
 
 
