@@ -398,7 +398,7 @@ def render_cloudron_settings(config):
         "                exec(_code)\n"
         "        else:\n"
         "            import sys as _sys\n"
-        '            print("custom_settings.py is not a root-owned 0640 root:cloudron file; skipping", file=_sys.stderr)\n'
+        '            print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)\n'
     )
 
     return "\n".join(blocks)

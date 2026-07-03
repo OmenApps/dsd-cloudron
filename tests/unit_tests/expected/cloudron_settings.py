@@ -71,4 +71,4 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
                 exec(_code)
         else:
             import sys as _sys
-            print("custom_settings.py is not a root-owned 0640 root:cloudron file; skipping", file=_sys.stderr)
+            print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)

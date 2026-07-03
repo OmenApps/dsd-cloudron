@@ -385,5 +385,15 @@ class PlatformDeployer:
         )
         body = f"{summary}\n\n{notes}" if notes else summary
         path = Path(dsd_config.project_root) / "CLOUDRON_NEXT_STEPS.md"
-        path.write_text(f"{header}\n{body}\n", encoding="utf-8")
+        try:
+            path.write_text(f"{header}\n{body}\n", encoding="utf-8")
+        except OSError as error:
+            # This file is an optional aid written after the artifacts (and, under
+            # --automate-all, after the commit and install). A write failure here
+            # must not look like a failed deploy, so warn and move on rather than
+            # raising - the same notes were just printed to stdout.
+            plugin_utils.write_output(
+                f"  Could not write CLOUDRON_NEXT_STEPS.md: {error}"
+            )
+            return
         plugin_utils.write_output("  Wrote CLOUDRON_NEXT_STEPS.md")

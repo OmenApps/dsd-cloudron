@@ -11,6 +11,26 @@ def _settings(**kwargs):
     return render_cloudron_settings(config)
 
 
+# The CLOUDRON_* environment the generated settings read when exec'd under the
+# ON_CLOUDRON gate. Shared by the tests that execute the rendered module; the
+# full-config test extends it with the OIDC keys.
+_BASE_CLOUDRON_ENV = {
+    "CLOUDRON_APP_ORIGIN": "https://blog.example.com",
+    "CLOUDRON_APP_DOMAIN": "blog.example.com",
+    "SECRET_KEY": "test-key",
+    "CLOUDRON_POSTGRESQL_DATABASE": "app",
+    "CLOUDRON_POSTGRESQL_USERNAME": "app",
+    "CLOUDRON_POSTGRESQL_PASSWORD": "pw",
+    "CLOUDRON_POSTGRESQL_HOST": "127.0.0.1",
+    "CLOUDRON_POSTGRESQL_PORT": "5432",
+    "CLOUDRON_REDIS_URL": "redis://127.0.0.1:6379/0",
+    "CLOUDRON_MAIL_SMTP_SERVER": "mail",
+    "CLOUDRON_MAIL_SMTP_PORT": "25",
+    "CLOUDRON_MAIL_SMTP_USERNAME": "app",
+    "CLOUDRON_MAIL_SMTP_PASSWORD": "pw",
+}
+
+
 # Every VALID toggle combination must assemble to syntactically valid Python.
 # Celery-without-Redis is rejected by CloudronAppConfig, so it is filtered out
 # (the condition `redis or not celery`). This exercises the indentation-sensitive
@@ -113,7 +133,7 @@ def test_settings_custom_override_gate():
     assert "exec(_f.read())" not in text
 
 
-def test_settings_custom_override_gate_behavior(monkeypatch, tmp_path):
+def test_settings_custom_override_gate_behavior(monkeypatch):
     # The gate hardcodes /app/data/custom_settings.py, which does not exist here,
     # so drive the generated code's logic offline: fake os.lstat's ownership/mode
     # for that path and redirect open() to a marker file, then exec the settings
@@ -124,22 +144,7 @@ def test_settings_custom_override_gate_behavior(monkeypatch, tmp_path):
     import os
     import builtins
 
-    env = {
-        "CLOUDRON_APP_ORIGIN": "https://blog.example.com",
-        "CLOUDRON_APP_DOMAIN": "blog.example.com",
-        "SECRET_KEY": "test-key",
-        "CLOUDRON_POSTGRESQL_DATABASE": "app",
-        "CLOUDRON_POSTGRESQL_USERNAME": "app",
-        "CLOUDRON_POSTGRESQL_PASSWORD": "pw",
-        "CLOUDRON_POSTGRESQL_HOST": "127.0.0.1",
-        "CLOUDRON_POSTGRESQL_PORT": "5432",
-        "CLOUDRON_REDIS_URL": "redis://127.0.0.1:6379/0",
-        "CLOUDRON_MAIL_SMTP_SERVER": "mail",
-        "CLOUDRON_MAIL_SMTP_PORT": "25",
-        "CLOUDRON_MAIL_SMTP_USERNAME": "app",
-        "CLOUDRON_MAIL_SMTP_PASSWORD": "pw",
-    }
-    for key, value in env.items():
+    for key, value in _BASE_CLOUDRON_ENV.items():
         monkeypatch.setenv(key, value)
 
     path = "/app/data/custom_settings.py"
@@ -192,22 +197,7 @@ def test_settings_execute_default_config(monkeypatch):
     # module under a Cloudron-like environment and assert the bindings that
     # matter actually land with the right values (a misnamed key or a block that
     # escaped the ON_CLOUDRON gate would pass ast.parse but fail here).
-    env = {
-        "CLOUDRON_APP_ORIGIN": "https://blog.example.com",
-        "CLOUDRON_APP_DOMAIN": "blog.example.com",
-        "SECRET_KEY": "test-key",
-        "CLOUDRON_POSTGRESQL_DATABASE": "app",
-        "CLOUDRON_POSTGRESQL_USERNAME": "app",
-        "CLOUDRON_POSTGRESQL_PASSWORD": "pw",
-        "CLOUDRON_POSTGRESQL_HOST": "127.0.0.1",
-        "CLOUDRON_POSTGRESQL_PORT": "5432",
-        "CLOUDRON_REDIS_URL": "redis://127.0.0.1:6379/0",
-        "CLOUDRON_MAIL_SMTP_SERVER": "mail",
-        "CLOUDRON_MAIL_SMTP_PORT": "25",
-        "CLOUDRON_MAIL_SMTP_USERNAME": "app",
-        "CLOUDRON_MAIL_SMTP_PASSWORD": "pw",
-    }
-    for key, value in env.items():
+    for key, value in _BASE_CLOUDRON_ENV.items():
         monkeypatch.setenv(key, value)
 
     namespace = {}
@@ -234,19 +224,7 @@ def test_settings_execute_full_config(monkeypatch):
     # snapshot never covers) so a misspelled CLOUDRON_* env var or a wrong
     # structure surfaces as a KeyError/AssertionError instead of shipping green.
     env = {
-        "CLOUDRON_APP_ORIGIN": "https://blog.example.com",
-        "CLOUDRON_APP_DOMAIN": "blog.example.com",
-        "SECRET_KEY": "test-key",
-        "CLOUDRON_POSTGRESQL_DATABASE": "app",
-        "CLOUDRON_POSTGRESQL_USERNAME": "app",
-        "CLOUDRON_POSTGRESQL_PASSWORD": "pw",
-        "CLOUDRON_POSTGRESQL_HOST": "127.0.0.1",
-        "CLOUDRON_POSTGRESQL_PORT": "5432",
-        "CLOUDRON_REDIS_URL": "redis://127.0.0.1:6379/0",
-        "CLOUDRON_MAIL_SMTP_SERVER": "mail",
-        "CLOUDRON_MAIL_SMTP_PORT": "25",
-        "CLOUDRON_MAIL_SMTP_USERNAME": "app",
-        "CLOUDRON_MAIL_SMTP_PASSWORD": "pw",
+        **_BASE_CLOUDRON_ENV,
         "CLOUDRON_OIDC_ISSUER": "https://login.example.com",
         "CLOUDRON_OIDC_CLIENT_ID": "client",
         "CLOUDRON_OIDC_CLIENT_SECRET": "secret",
