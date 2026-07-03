@@ -125,6 +125,10 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 LOGIN_REDIRECT_URL = "/"
+# Cloudron OIDC is the only way in: close local self-service signup with a custom
+# account adapter, while a social adapter keeps first-login OIDC provisioning open.
+ACCOUNT_ADAPTER = "{{ cookiecutter.project_slug }}.accounts.adapters.NoSignupAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "{{ cookiecutter.project_slug }}.accounts.adapters.CloudronSocialAccountAdapter"
 # allauth.account + allauth.mfa ship installed at their defaults (username login).
 # Email-first login and mandatory verification are a settings switch, left to the
 # user because the exact keys depend on the installed allauth major:

@@ -60,8 +60,9 @@ success message spells out the remaining steps:
 - Run `python manage.py migrate` to create allauth's tables.
 
 If you would rather not do this by hand, {doc}`scaffold-new-project` with
-`--sso` wires allauth into the generated project automatically, since
-there is no existing app list or URLconf to risk breaking.
+`--sso` wires allauth into the generated project automatically - including
+closing local signup with an adapter - since there is no existing app list or
+URLconf to risk breaking.
 
 ## Signing in
 

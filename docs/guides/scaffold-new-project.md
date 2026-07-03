@@ -42,7 +42,8 @@ Everything else is opt-in and off by default:
 
 `--sso`
 : Add the Cloudron OIDC addon and django-allauth, fully wired into
-  `INSTALLED_APPS`, middleware, and `urls.py`.
+  `INSTALLED_APPS`, middleware, and `urls.py`, with local self-service signup
+  closed so Cloudron OIDC is the way in.
 
 `--ninja`
 : Add a django-ninja API app and mount it at `/api/`.

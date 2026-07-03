@@ -37,3 +37,7 @@ Artifact trust and security hardening:
   (`*.pem`, `*.key`, `local_settings.py`, `.env.*`, service-account JSON, `*.har`)
   so they cannot bake into an image layer; the Cloudron settings pin
   `SECURE_CONTENT_TYPE_NOSNIFF` and `SECURE_REFERRER_POLICY = "same-origin"`.
+- Scaffolded `--sso` projects no longer accept local self-service signup: a
+  generated account adapter closes `/accounts/signup/` so Cloudron OIDC is the
+  only way in, while a social adapter keeps first-login OIDC provisioning working.
+  Login, logout, password reset, and MFA stay available.

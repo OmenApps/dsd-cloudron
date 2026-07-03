@@ -20,6 +20,9 @@ def main():
         remove([os.path.join(PROJECT_SLUG, "celery.py")])
     if "{{ cookiecutter.use_ninja }}" == "no":
         remove([os.path.join(PROJECT_SLUG, "core", "api.py")])
+    if "{{ cookiecutter.use_sso }}" == "no":
+        # adapters.py imports allauth, which is only a dependency when SSO is on.
+        remove([os.path.join(PROJECT_SLUG, "accounts", "adapters.py")])
 
 
 if __name__ == "__main__":

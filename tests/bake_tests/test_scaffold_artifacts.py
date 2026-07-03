@@ -146,6 +146,50 @@ def test_sso_off_omits_socialaccount_block(tmp_path):
     assert "SOCIALACCOUNT_PROVIDERS" not in settings
 
 
+def test_sso_closes_local_signup_with_adapter(tmp_path, run_manage):
+    # `check` alone is not enough: allauth resolves ACCOUNT_ADAPTER lazily at request
+    # time, so a wrong dotted path leaves check green while /accounts/signup/ stays
+    # open. Assert the security property behaviorally in the baked project's own
+    # interpreter (a subprocess - importing the adapter in-process would raise
+    # AppRegistryNotReady and pollute the hermetic bake suite).
+    pytest.importorskip("allauth")
+    project = _scaffold(tmp_path, sso=True)
+    assert (project / "my_shop" / "accounts" / "adapters.py").exists()
+    settings = (project / "my_shop" / "settings.py").read_text()
+    assert (
+        'ACCOUNT_ADAPTER = "my_shop.accounts.adapters.NoSignupAccountAdapter"'
+        in settings
+    )
+    assert (
+        "SOCIALACCOUNT_ADAPTER = "
+        '"my_shop.accounts.adapters.CloudronSocialAccountAdapter"' in settings
+    )
+    # allauth.urls stays mounted (login/logout/callback still work).
+    urls = (project / "my_shop" / "urls.py").read_text()
+    assert 'include("allauth.urls")' in urls
+    run_manage(project, "check")
+    # Resolve the dotted paths AND assert the property: local signup closed, social
+    # (OIDC first-login) signup still open.
+    run_manage(
+        project,
+        "shell",
+        "-c",
+        "from django.utils.module_loading import import_string\n"
+        "from django.conf import settings\n"
+        "assert import_string(settings.ACCOUNT_ADAPTER)()"
+        ".is_open_for_signup(None) is False\n"
+        "assert import_string(settings.SOCIALACCOUNT_ADAPTER)()"
+        ".is_open_for_signup(None, None) is True\n",
+    )
+
+
+def test_no_sso_prunes_adapters_module(tmp_path):
+    # adapters.py imports allauth, which is not a dependency when SSO is off, so the
+    # post-gen hook must delete it (as it does celery.py / core/api.py).
+    project = _scaffold(tmp_path)  # sso defaults off
+    assert not (project / "my_shop" / "accounts" / "adapters.py").exists()
+
+
 def test_sso_provider_id_matches_manifest_redirect_uri(tmp_path):
     # The single most fragile SSO invariant: the provider_id in cloudron_settings.py
     # must equal the <id> segment of the manifest loginRedirectUri

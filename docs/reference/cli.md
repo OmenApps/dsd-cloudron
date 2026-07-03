@@ -85,9 +85,9 @@ App-stack toggles default off:
 
 `--sso`
 : Add the Cloudron OIDC addon and django-allauth. A scaffolded project is
-  fully wired (`INSTALLED_APPS`, middleware, `urls.py`); a retrofit renders the
-  addon and provider config but leaves the allauth wiring to you. See
-  {doc}`/guides/enable-sso`.
+  fully wired (`INSTALLED_APPS`, middleware, `urls.py`, with local self-service
+  signup closed); a retrofit renders the addon and provider config but leaves
+  the allauth wiring to you. See {doc}`/guides/enable-sso`.
 
 `--ninja`
 : Add a django-ninja API app mounted at `/api/`.

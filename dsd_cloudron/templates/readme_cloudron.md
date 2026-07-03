@@ -37,8 +37,8 @@ fails to start.
 {% if greenfield %}This project ships with django-allauth fully wired: the `openid_connect`
 provider is in `INSTALLED_APPS`, `AUTHENTICATION_BACKENDS` keeps the model backend
 and adds allauth's, the account middleware is installed, and `allauth.urls` is
-mounted. Sign in with your Cloudron account; the local `admin` is a break-glass
-account.
+mounted. Local self-service signup is disabled (a custom `ACCOUNT_ADAPTER`), so
+Cloudron OIDC is the way in and the local `admin` is a break-glass account.
 {% else %}`django-allauth[socialaccount]` is added to your requirements and a
 `SOCIALACCOUNT_PROVIDERS` block is written, but allauth is NOT auto-wired into your
 project - a retrofit deploy will not rewrite your `INSTALLED_APPS` or `urls.py`.
