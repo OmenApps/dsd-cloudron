@@ -52,6 +52,24 @@ under DEBUG=False; re-run with --health-check-path pointing at a 2xx route.
 """
 
 
+def health_check_path_unresolved(path):
+    """Warning when the configured health check path does not resolve in the URLconf.
+
+    Best-effort and emitted before `cloudron install`, so the user can fix a path
+    that would 404 the install's health check instead of discovering it only after
+    a full build cycle. A route reachable only through middleware can fail to
+    resolve while still working, so this warns rather than blocks.
+    """
+    return (
+        f"\nWarning: the configured health check path {path!r} does not resolve in "
+        "your project's URLconf. Cloudron requires healthCheckPath to return a 2xx "
+        "response or the install fails its health check. Re-run with "
+        "--health-check-path pointing at a route that returns 200, or edit "
+        "CloudronManifest.json. If the path is reachable only through middleware, "
+        "you can ignore this.\n"
+    )
+
+
 def partial_write_failed(error):
     """Abort message when writing an artifact into the project fails midway.
 

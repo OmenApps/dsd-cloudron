@@ -1,12 +1,67 @@
 import pytest
 
+from django.core.exceptions import ImproperlyConfigured
+from django.urls import Resolver404
+
 from dsd_cloudron import platform_deployer as pd
 from dsd_cloudron.platform_deployer import PlatformDeployer
+from dsd_cloudron.packaging import CloudronAppConfig
 from dsd_cloudron.plugin_config import plugin_config
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
 from django_simple_deploy.management.commands.utils.command_errors import (
     DSDCommandError,
 )
+
+
+def _deployer_with_health_path(path):
+    deployer = PlatformDeployer()
+    deployer.config = CloudronAppConfig(
+        project_name="blog", app_id="com.example.blog", health_check_path=path
+    )
+    return deployer
+
+
+def test_health_check_warns_on_resolver404(monkeypatch):
+    # A path that does not resolve in the URLconf must produce a best-effort warning
+    # before the install burns a build cycle on a 404.
+    written = []
+    monkeypatch.setattr(
+        pd.plugin_utils, "write_output", lambda msg: written.append(msg)
+    )
+
+    def raise_404(path):
+        raise Resolver404()
+
+    monkeypatch.setattr(pd, "resolve", raise_404)
+    _deployer_with_health_path("/")._check_health_check_path()
+    assert any("health check path" in m for m in written)
+
+
+def test_health_check_silent_when_path_resolves(monkeypatch):
+    written = []
+    monkeypatch.setattr(
+        pd.plugin_utils, "write_output", lambda msg: written.append(msg)
+    )
+    monkeypatch.setattr(pd, "resolve", lambda path: object())  # a resolved match
+    _deployer_with_health_path("/healthz/")._check_health_check_path()
+    assert written == []
+
+
+def test_health_check_silent_on_non_resolver_error(monkeypatch):
+    # Offline (no configured settings) resolve() raises ImproperlyConfigured, and a
+    # broken urls.py raises an import error; neither is a missing route, so the
+    # method must stay silent and never crash.
+    written = []
+    monkeypatch.setattr(
+        pd.plugin_utils, "write_output", lambda msg: written.append(msg)
+    )
+
+    def raise_other(path):
+        raise ImproperlyConfigured("settings are not configured")
+
+    monkeypatch.setattr(pd, "resolve", raise_other)
+    _deployer_with_health_path("/")._check_health_check_path()
+    assert written == []
 
 
 def test_build_config_maps_flags():

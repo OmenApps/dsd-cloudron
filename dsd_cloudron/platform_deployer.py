@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from django.urls import Resolver404, resolve
+
 from django_simple_deploy.management.commands.utils import plugin_utils
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
 from django_simple_deploy.management.commands.utils.command_errors import (
@@ -70,6 +72,7 @@ class PlatformDeployer:
 
         self._validate_platform()
         self.config = self._build_config()
+        self._check_health_check_path()
         # render_all is not transactional and _add_celery_app/_modify_settings
         # edit files in place, so a filesystem error mid-write would otherwise
         # surface as a raw traceback with the project left partially modified.
@@ -159,6 +162,25 @@ class PlatformDeployer:
             )
         except ValueError as error:
             raise DSDCommandError(str(error)) from error
+
+    def _check_health_check_path(self):
+        # Best-effort, non-blocking: warn now if the configured healthCheckPath
+        # (default "/") does not resolve in the project's URLconf, so the user
+        # learns it before burning a full `cloudron install` build cycle on a 404.
+        # This runs inside core's Django management command, so the retrofit
+        # project's settings ARE configured and resolve() works. Warn ONLY on a
+        # genuine Resolver404: offline (the unit suite has no configured settings)
+        # resolve() raises ImproperlyConfigured, and a project with a broken urls.py
+        # raises an import error - neither is a missing route, so both return
+        # silently. Never block: a middleware-gated route can fail to resolve while
+        # still being reachable.
+        path = self.config.health_check_path
+        try:
+            resolve(path)
+        except Resolver404:
+            plugin_utils.write_output(platform_msgs.health_check_path_unresolved(path))
+        except Exception:
+            return
 
     # --- Artifact rendering and project edits ---
 
