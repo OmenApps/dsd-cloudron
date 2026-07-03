@@ -105,8 +105,86 @@ def test_settings_custom_override_gate():
     # root-owned override must propagate, not be swallowed. And there is only one.
     assert text.count("exec(") == 1
     assert "exec(_code)" in text
+    # Pin the structural placement: exec must come AFTER the read-try's handler,
+    # so moving it inside the try (which would swallow an OSError from the override)
+    # is caught here.
+    assert text.index("exec(_code)") > text.index("except OSError as _exc:")
     # The old unconditional read+exec is gone.
     assert "exec(_f.read())" not in text
+
+
+def test_settings_custom_override_gate_behavior(monkeypatch, tmp_path):
+    # The gate hardcodes /app/data/custom_settings.py, which does not exist here,
+    # so drive the generated code's logic offline: fake os.lstat's ownership/mode
+    # for that path and redirect open() to a marker file, then exec the settings
+    # and check whether the override applied. This proves the branch behavior
+    # (root-owned applies; cloudron-owned / symlink / group-writable / unreadable
+    # skipped) without a real /app/data or multiple uids.
+    import io
+    import os
+    import builtins
+
+    env = {
+        "CLOUDRON_APP_ORIGIN": "https://blog.example.com",
+        "CLOUDRON_APP_DOMAIN": "blog.example.com",
+        "SECRET_KEY": "test-key",
+        "CLOUDRON_POSTGRESQL_DATABASE": "app",
+        "CLOUDRON_POSTGRESQL_USERNAME": "app",
+        "CLOUDRON_POSTGRESQL_PASSWORD": "pw",
+        "CLOUDRON_POSTGRESQL_HOST": "127.0.0.1",
+        "CLOUDRON_POSTGRESQL_PORT": "5432",
+        "CLOUDRON_REDIS_URL": "redis://127.0.0.1:6379/0",
+        "CLOUDRON_MAIL_SMTP_SERVER": "mail",
+        "CLOUDRON_MAIL_SMTP_PORT": "25",
+        "CLOUDRON_MAIL_SMTP_USERNAME": "app",
+        "CLOUDRON_MAIL_SMTP_PASSWORD": "pw",
+    }
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    path = "/app/data/custom_settings.py"
+    code = "MARKER_APPLIED = True\n"
+
+    class FakeStat:
+        def __init__(self, st_uid, st_mode):
+            self.st_uid = st_uid
+            self.st_mode = st_mode
+
+    def run(st_uid, st_mode, readable=True):
+        real_lstat = os.lstat
+
+        def fake_lstat(p):
+            if p == path:
+                return FakeStat(st_uid, st_mode)
+            return real_lstat(p)
+
+        real_open = builtins.open
+
+        def fake_open(p, *a, **k):
+            if p == path:
+                if not readable:
+                    raise PermissionError("simulated unreadable file")
+                return io.StringIO(code)
+            return real_open(p, *a, **k)
+
+        monkeypatch.setattr(os, "lstat", fake_lstat)
+        monkeypatch.setattr(builtins, "open", fake_open)
+        namespace = {}
+        exec(compile(_settings(), "<cloudron_settings>", "exec"), namespace)
+        return "MARKER_APPLIED" in namespace
+
+    reg = 0o100000  # S_IFREG
+    lnk = 0o120000  # S_IFLNK
+    # root-owned, regular, 0640 -> applies.
+    assert run(0, reg | 0o640) is True
+    # cloudron-owned -> skipped.
+    assert run(1000, reg | 0o640) is False
+    # root-owned symlink -> skipped (lstat sees the link, not its target).
+    assert run(0, lnk | 0o777) is False
+    # root-owned but group-writable -> skipped.
+    assert run(0, reg | 0o660) is False
+    # root-owned but unreadable by the app user -> skipped, no crash.
+    assert run(0, reg | 0o600, readable=False) is False
 
 
 def test_settings_execute_default_config(monkeypatch):

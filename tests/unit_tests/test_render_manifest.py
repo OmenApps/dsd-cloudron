@@ -69,6 +69,9 @@ def test_manifest_postinstall_says_password_file_auto_removed():
     msg = _manifest()["postInstallMessage"]
     assert "persists in backups until you do" not in msg
     assert "Delete that file once you have recorded" not in msg
+    # And positively assert the new claim, so a message that stops mentioning the
+    # auto-removal (or contradicts it) fails here.
+    assert "removed automatically on the next start" in msg
 
 
 def test_manifest_version_and_author_passthrough():

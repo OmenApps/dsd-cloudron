@@ -73,9 +73,10 @@ def test_initial_admin_password_file_removed_after_init():
     text = _start()
     assert "rm -f /app/data/.initial_admin_password" in text
     # The cleanup is guarded on .initialized so a failed first run (which leaves
-    # .initialized absent) keeps the file for the retry.
+    # .initialized absent) keeps the file for the retry. rfind returns -1 (not a
+    # ValueError) when the guard is absent, so the assertion can actually fail.
     cleanup = text.index("rm -f /app/data/.initial_admin_password")
-    guard = text.rindex("/app/data/.initialized", 0, cleanup)
+    guard = text.rfind("/app/data/.initialized", 0, cleanup)
     assert guard != -1
     # It runs BEFORE the first-run block, not inside it (inside, .initialized can
     # never exist, so it would never fire).

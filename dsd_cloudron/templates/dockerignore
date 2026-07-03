@@ -14,7 +14,9 @@ Dockerfile.dev
 CLOUDRON_NEXT_STEPS.md
 
 # Secret-bearing files: the Dockerfile does COPY . /app/code/, so anything not
-# excluded here bakes into an image layer.
+# excluded here bakes into an image layer. If your project actually needs one of
+# these at runtime (e.g. a committed local_settings.py the app imports), delete
+# that line so it is included in the build.
 .env.*
 *.pem
 *.key

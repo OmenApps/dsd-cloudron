@@ -24,12 +24,15 @@ source "${CODE}/venv/bin/activate"
 echo "==> Normalizing ownership"
 # Normalize ownership of the persistent volume, but never touch
 # /app/data/custom_settings.py: its owner is the trust signal the settings
-# gate reads. Re-chowning it to root here would let an attacker-dropped,
-# cloudron-owned file be laundered to root and then exec'd. The find branch
+# gate reads. A plain recursive chown to cloudron:cloudron would downgrade a
+# legit root-owned override, which the gate then rejects (the override silently
+# stops working); and re-chowning it to root - the rejected alternative - would
+# launder an attacker-dropped, cloudron-owned file into a root-owned one the gate
+# execs. So leave its ownership alone whichever way it points. The find branch
 # prunes that one path and uses chown -h so a symlink the app wrote under
-# /app/data is never dereferenced (plain chown follows a symlink argument,
-# and a dangling one would abort every start under set -eu). The common
-# no-override case stays on the cheaper recursive chown.
+# /app/data is never dereferenced (plain chown follows a symlink argument, and a
+# dangling one would abort every start under set -eu). The common no-override
+# case stays on the cheaper recursive chown.
 if [[ -e /app/data/custom_settings.py || -L /app/data/custom_settings.py ]]; then
     find /app/data -path /app/data/custom_settings.py -prune -o -exec chown -h cloudron:cloudron {} +
 else
