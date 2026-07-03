@@ -1,4 +1,4 @@
-# Cloudron deployment for {{ project_name }}
+# Cloudron deployment for blog
 
 This directory was configured for Cloudron by dsd-cloudron. The generated files
 ARE the configuration control surface - edit them and re-deploy.
@@ -10,12 +10,12 @@ ARE the configuration control surface - edit them and re-deploy.
   check. The default is `/`; if your project returns 404 there under
   `DEBUG=False`, set a path that returns 200 (re-run deploy with
   `--health-check-path`, or edit the manifest).
-- `{{ project_name }}/cloudron_settings.py` - the Django settings glue. Every
+- `blog/cloudron_settings.py` - the Django settings glue. Every
   override is gated on `CLOUDRON_APP_ORIGIN`, so it is inert during local
   development. Drop a `/app/data/custom_settings.py` on the server for ad-hoc
   overrides; it is imported last.
 - `Dockerfile`, `start.sh`, `nginx.conf`, `supervisor/` - the runtime. The app
-  speaks plain HTTP on port {{ http_port }}; Cloudron terminates TLS.
+  speaks plain HTTP on port 8000; Cloudron terminates TLS.
 - `.dockerignore` - keeps the build context lean. The Dockerfile does
   `COPY . /app/code/`, so anything not ignored is baked into the image. Add any
   project-specific secret files (service-account JSON, `*.pem`, `local_settings.py`)
@@ -31,22 +31,17 @@ exported from your lock for a Poetry or Pipenv project. The packages are
 Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[socialaccount]`
 when SSO is enabled. If a needed package is missing, the image builds but the app
 fails to start.
-{% if enable_sso %}
+
 ### Single sign-on
 
-{% if greenfield %}This project ships with django-allauth fully wired: the `openid_connect`
-provider is in `INSTALLED_APPS`, `AUTHENTICATION_BACKENDS` keeps the model backend
-and adds allauth's, the account middleware is installed, and `allauth.urls` is
-mounted. Local self-service signup is disabled, so Cloudron OIDC is the way in and
-the local `admin` is a break-glass account.
-{% else %}`django-allauth[socialaccount]` is added to your requirements and a
+`django-allauth[socialaccount]` is added to your requirements and a
 `SOCIALACCOUNT_PROVIDERS` block is written, but allauth is NOT auto-wired into your
 project - a retrofit deploy will not rewrite your `INSTALLED_APPS` or `urls.py`.
 Finish the wiring yourself: see `CLOUDRON_NEXT_STEPS.md` (written next to this file
 after each deploy) and the enable-sso guide. Close local self-service signup at the
 same time - set `ACCOUNT_ADAPTER` to an adapter whose `is_open_for_signup` returns
 `False` - or `/accounts/signup/` stays open once you mount `allauth.urls`.
-{% endif %}{% endif %}
+
 ## Deploy and iterate
 
 ```bash
@@ -80,7 +75,7 @@ its superuser manually.
 
 ## Resource tuning
 
-`start.sh` runs `collectstatic` into `/run/{{ project_name }}/static` on every
+`start.sh` runs `collectstatic` into `/run/blog/static` on every
 start. `/run` is tmpfs (RAM-backed), so a large static bundle counts against the
 app's `memoryLimit`; raise `memoryLimit` in the manifest if collection runs the
 app out of memory. `start.sh` also runs `chown -R cloudron:cloudron /app/data`

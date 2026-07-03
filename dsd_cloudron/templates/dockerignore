@@ -11,3 +11,4 @@ dsd_logs/
 .pytest_cache/
 docker-compose.yml
 Dockerfile.dev
+CLOUDRON_NEXT_STEPS.md

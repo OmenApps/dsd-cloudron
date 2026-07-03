@@ -23,3 +23,11 @@ Hardening fixes found during that verification:
   is read-only and made gunicorn log a control-socket error on every start.
 - Serve a home page at `/` so a bare visit and the post-login redirect resolve
   instead of returning a 404.
+
+Artifact trust and security hardening:
+
+- The generated `README-cloudron.md` now tells retrofit `--sso` users the truth:
+  django-allauth is added to requirements but NOT auto-wired into their project,
+  with a pointer to the follow-up steps and a note to close local self-service
+  signup. Each deploy also writes a `CLOUDRON_NEXT_STEPS.md` operator aid next to
+  the project with the change summary and follow-up notes.

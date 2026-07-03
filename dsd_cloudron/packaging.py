@@ -20,12 +20,16 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 SUPPORTED_PKG_MANAGERS = ("req_txt", "poetry", "pipenv", "uv")
 
 # Standalone engine so rendering does not depend on the user's project settings.
-# IMPORTANT: every value in _context must be a string. Django localizes
+# IMPORTANT: every value in _context must be a str or a bool. Django localizes
 # non-string values (int/float) through the global settings during rendering,
 # which raises ImproperlyConfigured when settings are unconfigured (offline unit
 # tests, greenfield console script) and applies locale formatting (e.g. "8,000")
-# when they are configured (retrofit). Keeping the context string-only sidesteps
-# both. Autoescape off because we render shell/config/text, not HTML.
+# when they are configured (retrofit). Keeping the context to str/bool sidesteps
+# both: Django's localize() special-cases bool before the settings-touching
+# int/float branch, so a bool value cannot raise offline. readme_cloudron.md is
+# the one template carrying {% if %} conditionals (its greenfield/enable_sso
+# branches); every other template keeps conditional logic in Python.
+# Autoescape off because we render shell/config/text, not HTML.
 # string_if_invalid surfaces a context/template drift (an undefined variable)
 # loudly instead of rendering an empty string; an invariant test asserts no
 # rendered artifact contains the sentinel.
@@ -47,6 +51,11 @@ class CloudronAppConfig:
     title: str = ""
     version: str = "1.0.0"
     author: str = "Your Name"
+    # True only for the greenfield scaffolder, which wires allauth into the
+    # generated project. The retrofit deployer leaves it False (it cannot safely
+    # rewrite an existing project's INSTALLED_APPS/urls), which flips the readme's
+    # SSO section to "allauth is not auto-wired" instead of claiming it is.
+    greenfield: bool = False
 
     def __post_init__(self):
         # project_name is spliced into generated Python (STATIC_ROOT) and into
@@ -92,15 +101,20 @@ def _context(config):
     """Template context shared by the flat-text render functions.
 
     Only the variables the flat templates actually reference are included.
-    Conditional logic (addons, settings blocks, supervisor programs) lives in
-    Python, not in the templates, so the toggle flags are not passed here. Values
-    must be strings: the standalone Engine localizes non-string ints/floats
-    through global settings during rendering, which raises offline.
+    Most conditional logic (addons, settings blocks, supervisor programs) lives
+    in Python, not in the templates; the exception is readme_cloudron.md, whose
+    SSO wiring section branches on greenfield/enable_sso. Values must be str or
+    bool: the standalone Engine localizes non-string ints/floats through global
+    settings during rendering, which raises offline, but bools are safe.
     """
     return {
         "project_name": config.project_name,
         "http_port": str(config.http_port),
         "pip_install_block": _pip_install_block(config.pkg_manager),
+        # Real bools, not str(): a stringified "False" is truthy in a Django
+        # template and would flip the readme's SSO branch to the wired claim.
+        "greenfield": config.greenfield,
+        "enable_sso": config.enable_sso,
     }
 
 

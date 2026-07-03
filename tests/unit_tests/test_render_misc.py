@@ -37,3 +37,34 @@ def test_dockerignore_excludes_vcs_and_venv():
     assert ".git" in text
     assert "venv" in text or ".venv" in text
     assert "__pycache__" in text
+
+
+def test_dockerignore_excludes_next_steps_file():
+    # CLOUDRON_NEXT_STEPS.md is written next to the project on each deploy; keep it
+    # out of the image build context (the Dockerfile does COPY . /app/code/).
+    text = render_dockerignore(_config())
+    assert "CLOUDRON_NEXT_STEPS.md" in text
+
+
+def test_readme_greenfield_sso_claims_allauth_wired():
+    # A greenfield --sso project ships allauth fully wired, so the readme may say so.
+    text = render_readme(_config(enable_sso=True, greenfield=True))
+    assert "fully wired" in text
+    assert "NOT auto-wired" not in text
+
+
+def test_readme_retrofit_sso_says_allauth_not_auto_wired():
+    # The retrofit --sso path renders the provider block but does NOT wire allauth
+    # into the user's project; the readme must say so and point at the follow-up.
+    text = render_readme(_config(enable_sso=True, greenfield=False))
+    assert "NOT auto-wired" in text
+    assert "CLOUDRON_NEXT_STEPS.md" in text
+    assert "fully wired" not in text
+
+
+def test_readme_without_sso_makes_no_wiring_claim():
+    # No --sso, either mode: the readme carries no allauth wiring claim at all.
+    for greenfield in (True, False):
+        text = render_readme(_config(enable_sso=False, greenfield=greenfield))
+        assert "fully wired" not in text
+        assert "NOT auto-wired" not in text

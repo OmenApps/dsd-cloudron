@@ -139,8 +139,10 @@ def followup_notes(config):
             "allauth.account.auth_backends.AuthenticationBackend; add "
             "allauth.account.middleware.AccountMiddleware to MIDDLEWARE after "
             "django.contrib.auth.middleware.AuthenticationMiddleware; include "
-            "allauth.urls; and run migrate. Automated SSO wiring is planned for a "
-            "later release."
+            "allauth.urls; and run migrate. Close local self-service signup at the "
+            "same time - set ACCOUNT_ADAPTER to an adapter whose is_open_for_signup "
+            "returns False - or /accounts/signup/ stays open once allauth.urls is "
+            "mounted. Automated SSO wiring is planned for a later release."
         )
     return "\n\n".join(notes)
 
@@ -160,8 +162,9 @@ def changes_summary(config, added_requirements):
         f"- Cloudron addons declared in the manifest: {', '.join(addons)}.",
         "- Rendered the Cloudron artifact set (CloudronManifest.json, Dockerfile, "
         ".dockerignore, start.sh, nginx.conf, supervisor/, cloudron_settings.py, "
-        "README-cloudron.md; see the per-file lines above for written vs skipped) "
-        "and appended the settings import.",
+        "README-cloudron.md) and appended the settings import.",
+        "- Wrote CLOUDRON_NEXT_STEPS.md next to your project - a copy of this "
+        "summary and any follow-up notes you can keep after the output scrolls away.",
     ]
     if added_requirements:
         lines.append(f"- Added requirements: {', '.join(added_requirements)}.")

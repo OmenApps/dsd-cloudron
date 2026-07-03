@@ -53,7 +53,14 @@ success message spells out the remaining steps:
 - Add `allauth.account.middleware.AccountMiddleware` to `MIDDLEWARE`, after
   `django.contrib.auth.middleware.AuthenticationMiddleware`.
 - Include `allauth.urls` in your URLconf.
+- Close local self-service signup so Cloudron OIDC is the only way in: point
+  `ACCOUNT_ADAPTER` at an adapter subclass whose `is_open_for_signup` returns
+  `False`. Once you mount `allauth.urls`, `/accounts/signup/` is open by default,
+  which undoes the point of requiring Cloudron accounts.
 - Run `python manage.py migrate` to create allauth's tables.
+
+A scaffolded `--sso` project (see {doc}`scaffold-new-project`) ships this adapter
+already, so local signup is closed there out of the box.
 
 If you would rather not do this by hand, {doc}`scaffold-new-project` with
 `--sso` wires all of it into the generated project automatically, since

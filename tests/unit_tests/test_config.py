@@ -111,6 +111,26 @@ def test_context_values_are_render_safe():
     # The standalone Engine localizes non-string ints/floats through global
     # settings during rendering, which raises offline. Every context value must
     # therefore be a str or a bool (bool is localization-safe).
-    config = CloudronAppConfig(project_name="blog", app_id="com.example.blog")
+    config = CloudronAppConfig(
+        project_name="blog",
+        app_id="com.example.blog",
+        enable_sso=True,
+        greenfield=True,
+    )
     for key, value in _context(config).items():
         assert isinstance(value, (str, bool)), f"{key} is {type(value).__name__}"
+
+
+def test_context_threads_conditional_flags_as_bools():
+    # greenfield/enable_sso drive the readme's {% if %} branches, so they must be
+    # real bools: the string "False" is truthy in a Django template and would flip
+    # every retrofit readme to the greenfield "allauth wired" claim.
+    config = CloudronAppConfig(
+        project_name="blog",
+        app_id="com.example.blog",
+        enable_sso=True,
+        greenfield=False,
+    )
+    context = _context(config)
+    assert context["greenfield"] is False
+    assert context["enable_sso"] is True

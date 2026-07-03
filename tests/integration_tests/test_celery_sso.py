@@ -40,6 +40,15 @@ def test_celery_sso_artifacts(tmp_project, request):
         "dsd-cloudron",
         reference_filename="celery_sso.CloudronManifest.json",
     )
+    # A retrofit --sso deploy must tell the user in README-cloudron.md that allauth
+    # is NOT auto-wired; diff it so that branch stays enforced (the default
+    # integration test only covers the no-sso readme).
+    hf.check_reference_file(
+        tmp_project,
+        "README-cloudron.md",
+        "dsd-cloudron",
+        reference_filename="celery_sso.README-cloudron.md",
+    )
     # The celery.py app and its __init__ wiring are what make the rendered
     # worker/beat confs actually start; diff them too so a regression that drops
     # them fails here instead of only crash-looping on a real Cloudron box.

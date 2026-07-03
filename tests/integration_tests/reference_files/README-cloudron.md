@@ -29,9 +29,8 @@ adding them directly for a requirements.txt project, or writing a `requirements.
 exported from your lock for a Poetry or Pipenv project. The packages are
 `gunicorn` and a PostgreSQL driver (`psycopg[binary]`) always; `django-redis` when
 Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[socialaccount]`
-(with its `openid_connect` provider wired into `INSTALLED_APPS`,
-`AUTHENTICATION_BACKENDS`, and your urls) when SSO is enabled. If a needed package
-is missing, the image builds but the app fails to start.
+when SSO is enabled. If a needed package is missing, the image builds but the app
+fails to start.
 
 ## Deploy and iterate
 

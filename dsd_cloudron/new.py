@@ -138,6 +138,9 @@ def config_from_context(context):
         enable_sendmail=context["use_sendmail"] == "yes",
         enable_celery=context["use_celery"] == "yes",
         enable_sso=context["use_sso"] == "yes",
+        # The scaffolded project wires allauth itself, so the readme may say SSO is
+        # fully wired; the retrofit deployer leaves this at its False default.
+        greenfield=True,
     )
 
 

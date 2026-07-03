@@ -131,3 +131,55 @@ def test_success_message_includes_followup_notes(monkeypatch):
     deployer._show_success_message()
     assert any("Celery" in m for m in written)
     assert any("SSO" in m for m in written)
+
+
+def test_success_message_writes_next_steps_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(pd.plugin_utils, "write_output", lambda msg: None)
+    dsd_config.automate_all = False
+    dsd_config.unit_testing = False
+    dsd_config.project_root = tmp_path
+    deployer = PlatformDeployer()
+    deployer.config = CloudronAppConfig(
+        project_name="blog",
+        app_id="com.example.blog",
+        enable_sso=True,
+    )
+    deployer._show_success_message()
+    notes_file = tmp_path / "CLOUDRON_NEXT_STEPS.md"
+    assert notes_file.exists()
+    text = notes_file.read_text(encoding="utf-8")
+    assert "Changes made to your project" in text
+    assert "SSO" in text
+    # A self-describing header so the file explains itself out of the stdout flow.
+    assert "dsd-cloudron" in text
+
+
+def test_success_message_next_steps_file_is_rewritten_not_duplicated(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(pd.plugin_utils, "write_output", lambda msg: None)
+    dsd_config.automate_all = False
+    dsd_config.unit_testing = False
+    dsd_config.project_root = tmp_path
+    deployer = _deployer()
+    deployer._show_success_message()
+    deployer._show_success_message()
+    text = (tmp_path / "CLOUDRON_NEXT_STEPS.md").read_text(encoding="utf-8")
+    # Overwritten fresh each deploy, so the header appears exactly once.
+    assert text.count("Changes made to your project") == 1
+
+
+def test_success_message_skips_next_steps_file_under_guard(monkeypatch, tmp_path):
+    monkeypatch.setattr(pd.plugin_utils, "write_output", lambda msg: None)
+    dsd_config.automate_all = False
+    # unit_testing truthy: nothing is written even with a project_root set.
+    dsd_config.unit_testing = True
+    dsd_config.project_root = tmp_path
+    _deployer()._show_success_message()
+    assert not (tmp_path / "CLOUDRON_NEXT_STEPS.md").exists()
+
+    # No project_root: nothing is written even outside unit testing.
+    dsd_config.unit_testing = False
+    dsd_config.project_root = None
+    _deployer()._show_success_message()
+    assert not (tmp_path / "CLOUDRON_NEXT_STEPS.md").exists()
