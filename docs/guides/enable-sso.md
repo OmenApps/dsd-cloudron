@@ -59,11 +59,8 @@ success message spells out the remaining steps:
   which undoes the point of requiring Cloudron accounts.
 - Run `python manage.py migrate` to create allauth's tables.
 
-A scaffolded `--sso` project (see {doc}`scaffold-new-project`) ships this adapter
-already, so local signup is closed there out of the box.
-
 If you would rather not do this by hand, {doc}`scaffold-new-project` with
-`--sso` wires all of it into the generated project automatically, since
+`--sso` wires allauth into the generated project automatically, since
 there is no existing app list or URLconf to risk breaking.
 
 ## Signing in

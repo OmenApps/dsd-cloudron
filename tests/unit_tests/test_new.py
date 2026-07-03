@@ -108,6 +108,10 @@ def test_config_from_context_maps_to_cloudron_app_config():
     assert config.enable_sendmail is True
     assert config.enable_celery is True
     assert config.enable_sso is True
+    # The scaffolder always builds a greenfield config, which flips the readme's
+    # SSO section to the "allauth wired" claim; drop this and every scaffolded
+    # --sso readme would wrongly say allauth is not auto-wired.
+    assert config.greenfield is True
 
 
 def test_config_from_context_maps_false_toggles():

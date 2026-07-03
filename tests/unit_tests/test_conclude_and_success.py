@@ -169,16 +169,39 @@ def test_success_message_next_steps_file_is_rewritten_not_duplicated(
     assert text.count("Changes made to your project") == 1
 
 
-def test_success_message_skips_next_steps_file_under_guard(monkeypatch, tmp_path):
+def test_success_message_writes_next_steps_file_without_followup_notes(
+    monkeypatch, tmp_path
+):
+    # A no-celery/no-sso deploy produces empty followup_notes, exercising the
+    # body = summary (no-notes) branch of the writer.
     monkeypatch.setattr(pd.plugin_utils, "write_output", lambda msg: None)
     dsd_config.automate_all = False
+    dsd_config.unit_testing = False
+    dsd_config.project_root = tmp_path
+    _deployer()._show_success_message()  # default config: no celery, no sso
+    text = (tmp_path / "CLOUDRON_NEXT_STEPS.md").read_text(encoding="utf-8")
+    assert "Changes made to your project" in text
+    # No stray follow-up section when there are no notes.
+    assert "SSO:" not in text
+    assert "Celery:" not in text
+
+
+def test_success_message_skips_next_steps_file_when_unit_testing(monkeypatch, tmp_path):
     # unit_testing truthy: nothing is written even with a project_root set.
+    monkeypatch.setattr(pd.plugin_utils, "write_output", lambda msg: None)
+    dsd_config.automate_all = False
     dsd_config.unit_testing = True
     dsd_config.project_root = tmp_path
     _deployer()._show_success_message()
     assert not (tmp_path / "CLOUDRON_NEXT_STEPS.md").exists()
 
+
+def test_success_message_skips_next_steps_file_without_project_root(
+    monkeypatch, tmp_path
+):
     # No project_root: nothing is written even outside unit testing.
+    monkeypatch.setattr(pd.plugin_utils, "write_output", lambda msg: None)
+    dsd_config.automate_all = False
     dsd_config.unit_testing = False
     dsd_config.project_root = None
     _deployer()._show_success_message()
