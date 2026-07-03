@@ -13,7 +13,11 @@ ARE the configuration control surface - edit them and re-deploy.
 - `{{ project_name }}/cloudron_settings.py` - the Django settings glue. Every
   override is gated on `CLOUDRON_APP_ORIGIN`, so it is inert during local
   development. Drop a `/app/data/custom_settings.py` on the server for ad-hoc
-  overrides; it is imported last.
+  overrides; it is imported last, but only when it is owned by root and not
+  group/other-writable. Create it inside `cloudron exec` (which runs as root),
+  then `chown root:cloudron /app/data/custom_settings.py && chmod 640` it so
+  gunicorn can read it. A file the app itself could write is skipped (with a note
+  on stderr), so an upload cannot turn into persistent code execution.
 - `Dockerfile`, `start.sh`, `nginx.conf`, `supervisor/` - the runtime. The app
   speaks plain HTTP on port {{ http_port }}; Cloudron terminates TLS.
 - `.dockerignore` - keeps the build context lean. The Dockerfile does
@@ -83,8 +87,9 @@ its superuser manually.
 `start.sh` runs `collectstatic` into `/run/{{ project_name }}/static` on every
 start. `/run` is tmpfs (RAM-backed), so a large static bundle counts against the
 app's `memoryLimit`; raise `memoryLimit` in the manifest if collection runs the
-app out of memory. `start.sh` also runs `chown -R cloudron:cloudron /app/data`
-each start, which walks the whole persistent volume - a large media library adds
-startup latency. When Celery is enabled, the worker runs with `--concurrency=2`;
+app out of memory. `start.sh` also normalizes ownership under `/app/data` each
+start (a recursive `chown`, or a `find` that skips `custom_settings.py` when that
+override file exists), which walks the whole persistent volume - a large media
+library adds startup latency. When Celery is enabled, the worker runs with `--concurrency=2`;
 raise it (and `memoryLimit`) together in `supervisor/celery-worker.conf` if you
 need more throughput.

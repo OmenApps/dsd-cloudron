@@ -85,11 +85,28 @@ def test_settings_pins_secure_headers():
     assert 'SECURE_REFERRER_POLICY = "same-origin"' in text
 
 
-def test_settings_custom_override_hook_last():
+def test_settings_custom_override_gate():
+    # The override is exec'd only when the file is root-owned, not a symlink, and
+    # not group/other-writable, so an attacker-dropped, cloudron-owned file is
+    # skipped. Assert the gate's shape on the rendered text; the real ownership
+    # behavior needs a real /app/data and multiple uids, so it is a server check.
     text = _settings()
-    assert "/app/data/custom_settings.py" in text
-    # The exec hook must be the final statement so operator overrides win.
-    assert text.rstrip().endswith("exec(_f.read())")
+    assert '_custom_settings = "/app/data/custom_settings.py"' in text
+    # lstat, not stat: a cloudron-owned symlink to a root file must not pass.
+    assert "os.lstat(_custom_settings)" in text
+    assert "(_st.st_mode & 0o170000) == 0o120000" in text  # reject symlinks
+    assert "_st.st_uid == 0" in text
+    assert "not (_st.st_mode & 0o022)" in text  # reject group/other-writable
+    # A missing or mispermissioned file cannot brick startup, and a rejected but
+    # present file logs a skip line to stderr so an operator can diagnose it.
+    assert "except OSError" in text
+    assert "file=_sys.stderr" in text
+    # exec runs OUTSIDE the read try (in its else): a SyntaxError in a trusted,
+    # root-owned override must propagate, not be swallowed. And there is only one.
+    assert text.count("exec(") == 1
+    assert "exec(_code)" in text
+    # The old unconditional read+exec is gone.
+    assert "exec(_f.read())" not in text
 
 
 def test_settings_execute_default_config(monkeypatch):

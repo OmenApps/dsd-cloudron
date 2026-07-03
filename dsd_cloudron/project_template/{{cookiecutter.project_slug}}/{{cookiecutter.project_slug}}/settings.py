@@ -141,8 +141,10 @@ SOCIALACCOUNT_ADAPTER = "{{ cookiecutter.project_slug }}.accounts.adapters.Cloud
 # S3 addon, so activate it one of two ways: (1) set AWS_STORAGE_BUCKET_NAME (and the
 # other AWS_* vars) in the Cloudron app's Environment configuration, which makes this
 # block fire; or (2) assign the full STORAGES dict (plus AWS_* values) directly in
-# /app/data/custom_settings.py, which cloudron_settings.py execs and which overrides
-# this block via `from .cloudron_settings import *`. Putting ONLY AWS_STORAGE_BUCKET_NAME
+# /app/data/custom_settings.py, which cloudron_settings.py execs (only when that file
+# is owned by root and not group/other-writable - create it via `cloudron exec` as
+# root:cloudron mode 640) and which overrides this block via
+# `from .cloudron_settings import *`. Putting ONLY AWS_STORAGE_BUCKET_NAME
 # in custom_settings.py does NOT activate S3: this block has already evaluated (and
 # skipped) by the time custom_settings.py runs. The env-var path also drives the
 # local docker-compose dev setup.

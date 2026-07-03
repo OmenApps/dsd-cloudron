@@ -54,9 +54,14 @@ is enabled); an SMTP `EMAIL_BACKEND` (when sendmail is enabled); and a
 (when SSO is enabled). See {doc}`cloudron-addons` for exactly which
 `CLOUDRON_*` variables each block reads.
 
-The last thing it does is check for `/app/data/custom_settings.py` and,
-if present, execute it - the hook for ad-hoc, server-side overrides that
-take effect on the next restart without a rebuild.
+The last thing it does is check for `/app/data/custom_settings.py` and
+execute it - but only when that file is owned by `root` and not group- or
+other-writable, so a file the app process could write itself is skipped
+(with a note on stderr) rather than run. Create the override inside a root
+`cloudron exec` shell and `chown root:cloudron` + `chmod 640` it (see
+{doc}`/guides/operating-and-updating`). It is the hook for ad-hoc,
+server-side overrides that take effect on the next restart without a
+rebuild.
 
 On a retrofit, this file is appended to your project's settings with
 `from <project>.cloudron_settings import *`, using an absolute import so

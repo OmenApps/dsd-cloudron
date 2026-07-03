@@ -41,3 +41,11 @@ Artifact trust and security hardening:
   generated account adapter closes `/accounts/signup/` so Cloudron OIDC is the
   only way in, while a social adapter keeps first-login OIDC provisioning working.
   Login, logout, password reset, and MFA stay available.
+- The generated `cloudron_settings.py` now executes `/app/data/custom_settings.py`
+  only when it is owned by `root` and not group/other-writable, so a file the app
+  process could write itself can no longer become persistent code execution.
+  BREAKING for existing installs: an override created with the old
+  `cloudron push` recipe is `cloudron`-owned and stops applying until it is
+  re-created inside a root `cloudron exec` shell as `root:cloudron` mode 640 (a
+  file whose ownership came back non-root after a backup restore or app clone is
+  skipped the same way). A rejected-but-present file logs a skip line to stderr.

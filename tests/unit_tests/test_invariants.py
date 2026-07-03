@@ -39,6 +39,10 @@ def test_invariant_secret_key_own_marker_and_initialized_marker():
 def test_invariant_drop_privileges_and_exec():
     text = render_start_sh(_full())
     assert "chown -R cloudron:cloudron /app/data" in text
+    # start.sh must never re-chown custom_settings.py (the ownership gate's trust
+    # signal); the find branch prunes it and never dereferences a symlink.
+    assert "-path /app/data/custom_settings.py -prune" in text
+    assert "chown -h cloudron:cloudron" in text
     assert text.rstrip().endswith("--nodaemon")
     assert "exec /usr/bin/supervisord" in text
 

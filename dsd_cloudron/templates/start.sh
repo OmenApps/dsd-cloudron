@@ -22,7 +22,20 @@ export SECRET_KEY="$(cat /app/data/.secret_key)"
 source "${CODE}/venv/bin/activate"
 
 echo "==> Normalizing ownership"
-chown -R cloudron:cloudron /app/data "${RUN}" /run/nginx
+# Normalize ownership of the persistent volume, but never touch
+# /app/data/custom_settings.py: its owner is the trust signal the settings
+# gate reads. Re-chowning it to root here would let an attacker-dropped,
+# cloudron-owned file be laundered to root and then exec'd. The find branch
+# prunes that one path and uses chown -h so a symlink the app wrote under
+# /app/data is never dereferenced (plain chown follows a symlink argument,
+# and a dangling one would abort every start under set -eu). The common
+# no-override case stays on the cheaper recursive chown.
+if [[ -e /app/data/custom_settings.py || -L /app/data/custom_settings.py ]]; then
+    find /app/data -path /app/data/custom_settings.py -prune -o -exec chown -h cloudron:cloudron {} +
+else
+    chown -R cloudron:cloudron /app/data
+fi
+chown -R cloudron:cloudron "${RUN}" /run/nginx
 
 echo "==> Collecting static files into ${RUN}/static"
 gosu cloudron:cloudron python3 "${CODE}/manage.py" collectstatic --noinput

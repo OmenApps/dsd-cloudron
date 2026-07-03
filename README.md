@@ -54,7 +54,9 @@ The generated files ARE the configuration. Edit and re-deploy:
   check. Greenfield ships a `/healthz/` view that returns 200.
 - `<project>/cloudron_settings.py` - the Django glue, gated on
   `CLOUDRON_APP_ORIGIN` so it is inert during local development. Drop a
-  `/app/data/custom_settings.py` on the server for ad-hoc overrides.
+  `/app/data/custom_settings.py` on the server for ad-hoc overrides; it runs only
+  when owned by `root` (create it via `cloudron exec` as `root:cloudron` mode 640),
+  so a file the app could write itself is skipped.
 - `Dockerfile`, `start.sh`, `nginx.conf`, `supervisor/` - the runtime.
 
 Re-running `manage.py deploy` is safe but not silently idempotent: the settings

@@ -48,17 +48,37 @@ rebuilt from scratch.
 ## Ad-hoc overrides
 
 For a setting you want to change on the server without editing code and
-redeploying, drop a `/app/data/custom_settings.py` file on the server:
+redeploying, drop a `/app/data/custom_settings.py` file on the server.
+The generated `cloudron_settings.py` executes it last, so anything it sets -
+`DATABASES`, `EMAIL_BACKEND`, a feature flag your project reads from settings -
+overrides what dsd-cloudron generated.
+
+For safety it runs the file **only** when it is owned by `root` and not
+group- or other-writable, so a file the app process could write itself is
+skipped (with a note on stderr). The app runs as `cloudron`, which cannot
+`chown` a file to root, so create the override inside a root `cloudron exec`
+shell:
 
 ```bash
-cloudron push --app <subdomain> custom_settings.py /app/data/custom_settings.py
+cloudron exec --app <subdomain>
+# in the shell (running as root):
+cat > /app/data/custom_settings.py <<'EOF'
+# your overrides here
+EOF
+chown root:cloudron /app/data/custom_settings.py
+chmod 640 /app/data/custom_settings.py
 ```
 
-The generated `cloudron_settings.py` checks for that file last and
-executes it in place if present, so anything it sets - `DATABASES`,
-`EMAIL_BACKEND`, a feature flag your project reads from settings -
-overrides what dsd-cloudron generated. It only takes effect on the next
-container start, so follow it with `cloudron update` or a restart.
+Root ownership satisfies the gate; group `cloudron` mode 640 lets gunicorn
+read it. It only takes effect on the next container start, so follow it with
+`cloudron update` or a restart.
+
+An override created with the old `cloudron push` recipe is `cloudron`-owned,
+not root-owned, so it is now skipped. The same applies to a file whose owner
+came back non-root after a backup restore or an app clone. Verify with
+`cloudron exec --app <subdomain> -- ls -l /app/data/custom_settings.py` and
+re-apply the `chown root:cloudron` + `chmod 640` above if it is not
+`root:cloudron`.
 
 ## First sign-in
 

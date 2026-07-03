@@ -69,8 +69,20 @@ def test_superuser_password_not_exported_to_long_lived_env():
 
 def test_chown_and_exec_supervisord():
     text = _start()
+    # The common no-override case keeps the cheap recursive chown of /app/data.
     assert "chown -R cloudron:cloudron /app/data" in text
     assert "gosu cloudron:cloudron" in text
     assert text.rstrip().endswith(
         "exec /usr/bin/supervisord --configuration /etc/supervisor/supervisord.conf --nodaemon"
     )
+
+
+def test_chown_excludes_custom_settings():
+    # When a custom_settings.py is present its ownership is the settings gate's
+    # trust signal, so start.sh must NOT re-chown it (that would launder an
+    # attacker-dropped, cloudron-owned file into a root-owned, exec'd one). The
+    # find branch prunes it and uses chown -h so a symlink argument under /app/data
+    # is never dereferenced.
+    text = _start()
+    assert "-path /app/data/custom_settings.py -prune" in text
+    assert "chown -h cloudron:cloudron" in text

@@ -54,6 +54,21 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
     SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
     _custom_settings = "/app/data/custom_settings.py"
-    if os.path.exists(_custom_settings):
-        with open(_custom_settings, encoding="utf-8") as _f:
-            exec(_f.read())
+    try:
+        _st = os.lstat(_custom_settings)
+    except OSError:
+        _st = None
+    if _st is not None:
+        _is_symlink = (_st.st_mode & 0o170000) == 0o120000
+        if _st.st_uid == 0 and not _is_symlink and not (_st.st_mode & 0o022):
+            try:
+                with open(_custom_settings, encoding="utf-8") as _f:
+                    _code = _f.read()
+            except OSError as _exc:
+                import sys as _sys
+                print(f"custom_settings.py present but unreadable ({_exc}); skipping", file=_sys.stderr)
+            else:
+                exec(_code)
+        else:
+            import sys as _sys
+            print("custom_settings.py is not a root-owned 0640 root:cloudron file; skipping", file=_sys.stderr)
