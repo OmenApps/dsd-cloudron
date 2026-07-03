@@ -49,3 +49,8 @@ Artifact trust and security hardening:
   re-created inside a root `cloudron exec` shell as `root:cloudron` mode 640 (a
   file whose ownership came back non-root after a backup restore or app clone is
   skipped the same way). A rejected-but-present file logs a skip line to stderr.
+- The one-time `/app/data/.initial_admin_password` file is now removed
+  automatically on the first start after initialization, so the bootstrap secret
+  no longer persists in every backup. Read it during the first-boot window;
+  operators of existing installs should note that after their next restart the
+  file is gone (reset with `manage.py changepassword admin` via `cloudron exec`).

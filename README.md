@@ -78,10 +78,12 @@ on every start.
 
 A local `admin` account is created on the first install; its generated password
 is saved on the server at `/app/data/.initial_admin_password`. Read it with
-`cloudron exec --app <subdomain> -- cat /app/data/.initial_admin_password`, sign
-in at `/admin/`, and change it - then delete that file (it persists in backups
-until you do). With `--sso`, sign in with your Cloudron account; the local
-`admin` is a break-glass account for promoting your user.
+`cloudron exec --app <subdomain> -- cat /app/data/.initial_admin_password` during
+the first-boot window - the file is removed automatically on the next start once
+the app is initialized (if you miss it, reset with `manage.py changepassword
+admin` via `cloudron exec`). Sign in at `/admin/` and change it. With `--sso`,
+sign in with your Cloudron account; the local `admin` is a break-glass account
+for promoting your user.
 
 ## License
 

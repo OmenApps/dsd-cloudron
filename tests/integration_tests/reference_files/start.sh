@@ -43,6 +43,17 @@ gosu cloudron:cloudron python3 "${CODE}/manage.py" collectstatic --noinput
 echo "==> Applying database migrations"
 gosu cloudron:cloudron python3 "${CODE}/manage.py" migrate --noinput
 
+# Once the app is initialized, drop the one-time admin password file so the
+# bootstrap secret's lifetime is bounded to roughly one restart cycle instead of
+# riding along in every backup. This runs BEFORE the first-run block below: inside
+# that block .initialized cannot exist, so it would never fire there. The retry
+# window is preserved - .initialized is touched only after createsuperuser
+# succeeds, so a failed first run keeps the file for the next attempt.
+if [[ -f /app/data/.initialized && -f /app/data/.initial_admin_password ]]; then
+    echo "==> Removing the one-time initial admin password file"
+    rm -f /app/data/.initial_admin_password
+fi
+
 if [[ ! -f /app/data/.initialized ]]; then
     echo "==> First run: creating default admin superuser"
     # Generate a per-install random password so the open-source image ships no

@@ -222,7 +222,10 @@ def success_msg(config, location, log_output=""):
         password is generated per install and saved on the server at
         /app/data/.initial_admin_password. Retrieve it with:
             cloudron exec --app {location_hint} -- cat /app/data/.initial_admin_password
-        Sign in at /admin/, change the password, then delete that file.
+        Read it during this first-boot window: the file is removed automatically on
+        the next start once the app is initialized. If you miss it, reset with
+        `manage.py changepassword admin` via `cloudron exec`. Sign in at /admin/
+        and change the password.
         """)
     if log_output:
         msg += (
@@ -248,6 +251,8 @@ def success_msg_automate_all(deployed_url):
         A default admin account `admin` was created; its password is generated
         per install and saved on the server at /app/data/.initial_admin_password.
         Read it with `cloudron exec --app <subdomain> -- cat
-        /app/data/.initial_admin_password`, change it immediately, then delete
-        that file.
+        /app/data/.initial_admin_password` during this first-boot window: the file
+        is removed automatically on the next start once the app is initialized. If
+        you miss it, reset with `manage.py changepassword admin` via `cloudron
+        exec`. Change the password after signing in.
         """)

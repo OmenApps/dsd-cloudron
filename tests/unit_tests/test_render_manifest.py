@@ -62,6 +62,15 @@ def test_manifest_postinstall_uses_sso_tags():
     assert "changeme123" not in msg  # no literal credential in the public manifest
 
 
+def test_manifest_postinstall_says_password_file_auto_removed():
+    # start.sh removes the file on the next start after init, so the message must
+    # not tell the operator it persists until they delete it (now false and worse:
+    # they would assume leisure and find it gone).
+    msg = _manifest()["postInstallMessage"]
+    assert "persists in backups until you do" not in msg
+    assert "Delete that file once you have recorded" not in msg
+
+
 def test_manifest_version_and_author_passthrough():
     m = _manifest(version="2.1.0", author="ACME Corp")
     assert m["version"] == "2.1.0"

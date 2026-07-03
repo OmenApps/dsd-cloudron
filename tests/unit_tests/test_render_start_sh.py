@@ -67,6 +67,22 @@ def test_superuser_password_not_exported_to_long_lived_env():
     assert "export DJANGO_SUPERUSER_PASSWORD" not in text
 
 
+def test_initial_admin_password_file_removed_after_init():
+    # Once .initialized exists (the first run succeeded), the one-time password
+    # file is removed on the next start so it stops riding along in every backup.
+    text = _start()
+    assert "rm -f /app/data/.initial_admin_password" in text
+    # The cleanup is guarded on .initialized so a failed first run (which leaves
+    # .initialized absent) keeps the file for the retry.
+    cleanup = text.index("rm -f /app/data/.initial_admin_password")
+    guard = text.rindex("/app/data/.initialized", 0, cleanup)
+    assert guard != -1
+    # It runs BEFORE the first-run block, not inside it (inside, .initialized can
+    # never exist, so it would never fire).
+    first_run = text.index("First run: creating default admin superuser")
+    assert cleanup < first_run
+
+
 def test_chown_and_exec_supervisord():
     text = _start()
     # The common no-override case keeps the cheap recursive chown of /app/data.

@@ -59,11 +59,13 @@ generated per install and saved on the server at
 cloudron exec --app <subdomain> -- cat /app/data/.initial_admin_password
 ```
 
-Sign in at `/admin/`, change the password, then delete
-`/app/data/.initial_admin_password` - it persists in backups until you do. With
-SSO enabled, sign in with your Cloudron account instead; the local `admin` is a
-break-glass account you can use to promote your Cloudron user in the Django
-admin. The default account assumes the standard Django user model
+Read it during this first-boot window: the file is removed automatically on the
+next start once the app is initialized, so it does not linger in every backup. If
+you miss it, reset the password with `cloudron exec --app <subdomain> --
+python3 /app/code/manage.py changepassword admin`. Sign in at `/admin/` and change
+the password. With SSO enabled, sign in with your Cloudron account instead; the
+local `admin` is a break-glass account you can use to promote your Cloudron user
+in the Django admin. The default account assumes the standard Django user model
 (`USERNAME_FIELD = "username"`); a project with a custom user model should create
 its superuser manually.
 

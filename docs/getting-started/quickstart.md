@@ -34,8 +34,10 @@ with:
 cloudron exec --app my-app -- cat /app/data/.initial_admin_password
 ```
 
-Sign in at `/admin/` with that password, change it, then delete the file -
-it stays in backups until you do.
+Read it during the first-boot window: the file is removed automatically on
+the next start once the app is initialized, so it does not linger in every
+backup. If you miss it, reset with `manage.py changepassword admin` via
+`cloudron exec`. Sign in at `/admin/` with that password and change it.
 
 ## Next steps
 
