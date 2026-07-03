@@ -291,6 +291,13 @@ def render_cloudron_settings(config):
         '    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")\n'
         "    SESSION_COOKIE_SECURE = True\n"
         "    CSRF_COOKIE_SECURE = True\n"
+        # Restate Django's own secure defaults so the headers stay correct if a
+        # project overrode them or a future Django default relaxes. same-origin is
+        # already Django's default; do not regress to a looser cross-origin policy.
+        # These apply only when SecurityMiddleware is in MIDDLEWARE (greenfield has
+        # it; a retrofit project may not - best-effort).
+        "    SECURE_CONTENT_TYPE_NOSNIFF = True\n"
+        '    SECURE_REFERRER_POLICY = "same-origin"\n'
     )
 
     blocks.append(

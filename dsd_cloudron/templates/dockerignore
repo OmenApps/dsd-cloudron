@@ -12,3 +12,12 @@ dsd_logs/
 docker-compose.yml
 Dockerfile.dev
 CLOUDRON_NEXT_STEPS.md
+
+# Secret-bearing files: the Dockerfile does COPY . /app/code/, so anything not
+# excluded here bakes into an image layer.
+.env.*
+*.pem
+*.key
+local_settings.py
+*service-account*.json
+*.har

@@ -11,9 +11,13 @@ def test_listens_on_http_port():
     assert "listen 9000;" in _nginx(http_port=9000)
 
 
-def test_forwarded_proto_is_passthrough_not_scheme():
+def test_forwarded_proto_is_hardcoded_https():
+    # The Cloudron edge terminates TLS and proxies plain HTTP inward, so it is the
+    # only hop that sets X-Forwarded-Proto. Reflecting the inbound header would let
+    # a client spoof the one value SECURE_PROXY_SSL_HEADER trusts; pin it to https.
     text = _nginx()
-    assert "proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;" in text
+    assert "proxy_set_header X-Forwarded-Proto https;" in text
+    assert "$http_x_forwarded_proto" not in text
     assert "$scheme" not in text
 
 

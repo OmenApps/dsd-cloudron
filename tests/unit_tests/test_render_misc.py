@@ -46,6 +46,16 @@ def test_dockerignore_excludes_next_steps_file():
     assert "CLOUDRON_NEXT_STEPS.md" in text
 
 
+def test_dockerignore_excludes_secret_files():
+    # The Dockerfile does COPY . /app/code/, so common secret-bearing files must be
+    # excluded or they bake into an image layer.
+    text = render_dockerignore(_config())
+    for pattern in ("*.pem", "*.key", "local_settings.py", ".env.*", "*.har"):
+        assert pattern in text, pattern
+    # A service-account credentials JSON glob (GCP/GCS-style).
+    assert "*service-account*.json" in text
+
+
 def test_readme_greenfield_sso_claims_allauth_wired():
     # A greenfield --sso project ships allauth fully wired, so the readme may say so.
     text = render_readme(_config(enable_sso=True, greenfield=True))

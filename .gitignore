@@ -12,3 +12,6 @@ dist/
 docs/_build/
 example-cloudron-apps/
 example-dsd-plugins/
+
+# Captured HTTP archives (e.g. SSO debugging) can carry tokens and cookies.
+*.har

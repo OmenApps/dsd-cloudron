@@ -31,3 +31,9 @@ Artifact trust and security hardening:
   with a pointer to the follow-up steps and a note to close local self-service
   signup. Each deploy also writes a `CLOUDRON_NEXT_STEPS.md` operator aid next to
   the project with the change summary and follow-up notes.
+- Harden the generated artifacts: nginx now sets `X-Forwarded-Proto https`
+  literally instead of reflecting the inbound header (the one value
+  `SECURE_PROXY_SSL_HEADER` trusts); `.dockerignore` excludes common secret files
+  (`*.pem`, `*.key`, `local_settings.py`, `.env.*`, service-account JSON, `*.har`)
+  so they cannot bake into an image layer; the Cloudron settings pin
+  `SECURE_CONTENT_TYPE_NOSNIFF` and `SECURE_REFERRER_POLICY = "same-origin"`.

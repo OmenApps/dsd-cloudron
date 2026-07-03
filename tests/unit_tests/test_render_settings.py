@@ -76,6 +76,15 @@ def test_settings_sso_conditional():
     assert "SOCIALACCOUNT_PROVIDERS" not in off
 
 
+def test_settings_pins_secure_headers():
+    # Restate Django's own secure defaults so the headers stay correct even if a
+    # project overrode them or a future Django default relaxes. same-origin is the
+    # current Django default; do not regress to a looser cross-origin policy.
+    text = _settings()
+    assert "SECURE_CONTENT_TYPE_NOSNIFF = True" in text
+    assert 'SECURE_REFERRER_POLICY = "same-origin"' in text
+
+
 def test_settings_custom_override_hook_last():
     text = _settings()
     assert "/app/data/custom_settings.py" in text
@@ -121,6 +130,8 @@ def test_settings_execute_default_config(monkeypatch):
     assert namespace["EMAIL_USE_SSL"] is False
     assert namespace["SESSION_COOKIE_SECURE"] is True
     assert namespace["CSRF_COOKIE_SECURE"] is True
+    assert namespace["SECURE_CONTENT_TYPE_NOSNIFF"] is True
+    assert namespace["SECURE_REFERRER_POLICY"] == "same-origin"
 
 
 def test_settings_execute_full_config(monkeypatch):
