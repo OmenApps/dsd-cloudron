@@ -21,9 +21,11 @@ ARE the configuration control surface - edit them and re-deploy.
 - `Dockerfile`, `start.sh`, `nginx.conf`, `supervisor/` - the runtime. The app
   speaks plain HTTP on port 8000; Cloudron terminates TLS.
 - `.dockerignore` - keeps the build context lean. The Dockerfile does
-  `COPY . /app/code/`, so anything not ignored is baked into the image. Add any
-  project-specific secret files (service-account JSON, `*.pem`, `local_settings.py`)
-  to it before building so they do not end up in an image layer.
+  `COPY . /app/code/`, so anything not ignored is baked into the image. Common
+  secret-bearing files (`.env.*`, `*.pem`, `*.key`, `local_settings.py`,
+  service-account JSON, `*.har`) are excluded by default; add any other
+  project-specific secret files before building so they do not end up in an
+  image layer.
 
 ## Required packages
 

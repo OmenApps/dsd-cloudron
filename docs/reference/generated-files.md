@@ -89,19 +89,24 @@ generated, both load it.
 
 `.dockerignore`
 : Keeps the build context lean. The Dockerfile does `COPY . /app/code/`,
-  so anything not listed here ends up in an image layer - add
-  project-specific secrets (`*.pem`, service-account JSON,
-  `local_settings.py`) before building.
+  so anything not listed here ends up in an image layer. Common secret
+  patterns (`.env.*`, `*.pem`, `*.key`, `local_settings.py`,
+  service-account JSON, `*.har`) are excluded by default; add any other
+  project-specific secret files before building.
 
 `start.sh`
 : Runs as root inside the container. Each start it creates the writable
   runtime directories, ensures a persistent `SECRET_KEY` exists under
-  `/app/data`, and runs `chown -R cloudron:cloudron` on `/app/data` and
-  the run directories. It then collects static files and runs
-  `manage.py migrate` - on every start, not only the first - each via
-  `gosu cloudron:cloudron`. First run only, gated on
+  `/app/data`, and normalizes ownership to `cloudron:cloudron` on
+  `/app/data` and the run directories - leaving
+  `/app/data/custom_settings.py` untouched, because its ownership is the
+  trust signal the override gate above reads. It then collects static
+  files and runs `manage.py migrate` - on every start, not only the
+  first - each via `gosu cloudron:cloudron`. First run only, gated on
   `/app/data/.initialized`, it creates a local `admin` superuser the
-  same way. It finishes by `exec`-ing `supervisord` directly, with no
+  same way; once initialization has succeeded, the next start removes
+  the one-time `/app/data/.initial_admin_password` file. It finishes by
+  `exec`-ing `supervisord` directly, with no
   `gosu`, so `supervisord` itself runs as root and becomes the
   container's main process, receiving `SIGTERM` on stop. The
   long-running processes still drop to `cloudron`: gunicorn and the
