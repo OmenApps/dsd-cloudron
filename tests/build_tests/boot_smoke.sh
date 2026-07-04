@@ -37,8 +37,13 @@ cleanup() {
     docker rm -f "$APP" "$PG" "$REDIS" >/dev/null 2>&1 || true
     docker volume rm "$DATA_VOL" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
+    docker rmi -f "$IMAGE" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+# Turn Ctrl-C / a cancellation signal into a normal exit so the EXIT trap still
+# runs cleanup; an untrapped SIGINT/SIGTERM would skip it and leak the containers,
+# volume, network, and image (matters on a local or self-hosted run).
+trap 'exit 130' INT TERM
 
 echo "==> Creating network $NET"
 docker network create "$NET" >/dev/null
@@ -114,7 +119,7 @@ fi
 echo "==> Polling http://127.0.0.1:${HOST_PORT}${HEALTH_PATH} (Host: ${APP_DOMAIN}) for a 2xx"
 CODE=000
 for _ in $(seq 1 60); do
-    CODE="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HOST_PORT}${HEALTH_PATH}")" || CODE=000
+    CODE="$(curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}' -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HOST_PORT}${HEALTH_PATH}")" || CODE=000
     case "$CODE" in
         2*) echo "==> Health check passed with HTTP $CODE"; exit 0 ;;
     esac
