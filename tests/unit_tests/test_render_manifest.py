@@ -19,6 +19,15 @@ def test_manifest_core_fields():
     assert m["title"] == "Blog"
 
 
+def test_manifest_custom_memory_limit_and_health_check_path():
+    # The default core fields are covered above; this pins the one untested link
+    # in the CLI -> config -> manifest chain: a non-default memory_limit and
+    # health_check_path must reach the rendered JSON, not silently fall back.
+    m = _manifest(memory_limit=2147483648, health_check_path="/healthz/")
+    assert m["memoryLimit"] == 2147483648
+    assert m["healthCheckPath"] == "/healthz/"
+
+
 def test_manifest_default_addons():
     addons = _manifest()["addons"]
     assert addons["localstorage"] == {}
