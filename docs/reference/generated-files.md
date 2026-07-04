@@ -46,13 +46,16 @@ development and during the image build - neither has that variable set -
 and only takes effect once the container is running on Cloudron.
 
 Inside the gate it sets `DEBUG`, `SECRET_KEY`, `ALLOWED_HOSTS`,
-`CSRF_TRUSTED_ORIGINS`, the HTTPS/proxy and cookie settings, and a
-PostgreSQL `DATABASES` block (always); a Redis `CACHES` block (when Redis
+`CSRF_TRUSTED_ORIGINS`, the HTTPS/proxy and cookie settings - including
+`SECURE_SSL_REDIRECT` and a conservative one-hour `SECURE_HSTS_SECONDS` - and
+a PostgreSQL `DATABASES` block (always); a Redis `CACHES` block (when Redis
 is enabled); `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` (when Celery
 is enabled); an SMTP `EMAIL_BACKEND` (when sendmail is enabled); and a
 `SOCIALACCOUNT_PROVIDERS` block for the allauth `openid_connect` provider
-(when SSO is enabled). See {doc}`cloudron-addons` for exactly which
-`CLOUDRON_*` variables each block reads.
+(when SSO is enabled). On a retrofit `--sso` it also points `ACCOUNT_ADAPTER`
+and `SOCIALACCOUNT_ADAPTER` at the shipped `cloudron_adapters.py` (see below).
+See {doc}`cloudron-addons` for exactly which `CLOUDRON_*` variables each block
+reads.
 
 The last thing it does is check for `/app/data/custom_settings.py` and
 execute it - but only when that file is owned by `root` and not group- or
@@ -72,6 +75,17 @@ with a relative, guarded import - `try: from .cloudron_settings import
 local development and tests run cleanly before the file exists. The form
 differs, but the net effect is the same: once `cloudron_settings.py` is
 generated, both load it.
+
+## `<project>/cloudron_adapters.py` (retrofit `--sso` only)
+
+A standalone allauth adapters module, written into your project package on a
+retrofit `--sso` deploy so you point `ACCOUNT_ADAPTER`/`SOCIALACCOUNT_ADAPTER`
+at a real file instead of hand-authoring one. Its account adapter closes local
+self-service signup (`is_open_for_signup` returns `False`) so Cloudron OIDC is
+the only way in, while its social adapter keeps OIDC first-login provisioning
+working. `cloudron_settings.py` already points at it under the Cloudron gate. A
+scaffolded (`dsd-cloudron new`) project ships its own `accounts/adapters.py`
+instead, so this file is retrofit-only.
 
 ## Dockerfile, `.dockerignore`, `start.sh`, `nginx.conf`, `supervisor/`
 

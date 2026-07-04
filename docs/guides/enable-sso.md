@@ -18,9 +18,10 @@ Either way, the deploy:
 - Declares the Cloudron `oidc` addon in `CloudronManifest.json`.
 - Renders a `SOCIALACCOUNT_PROVIDERS` block in the generated Cloudron
   settings, pointed at the OIDC credentials Cloudron injects at runtime.
-- Adds `django-allauth[socialaccount]` to your requirements. The
+- Adds `django-allauth[mfa,socialaccount]` to your requirements. The
   `socialaccount` extra pulls the OIDC runtime dependencies the generated
-  provider imports, so the app boots.
+  provider imports so the app boots; the `mfa` extra adds allauth's
+  multi-factor support. Retrofit and greenfield install the same extras.
 
 Every generated manifest sets `optionalSso: true`, whether or not you
 pass `--sso`. That setting only tells Cloudron the app will accept
@@ -38,31 +39,46 @@ users back to after they authenticate with Cloudron.
 ## Retrofit: finish the allauth wiring
 
 On an existing project, `manage.py deploy --sso` cannot safely rewrite your
-`INSTALLED_APPS` or `urls.py` - it does not know what is already there, or
-in what order. So a retrofit deploy renders the addon and the provider
-config, then stops short of wiring allauth into your project. The deploy's
-success message spells out the remaining steps:
+`INSTALLED_APPS` or `urls.py` - it does not know what is already there, or in
+what order. So a retrofit deploy does everything it safely can and leaves the
+app-list and URLconf edits to you.
+
+What the retrofit deploy does for you:
+
+- Renders the `SOCIALACCOUNT_PROVIDERS` block in `cloudron_settings.py`.
+- Ships `cloudron_adapters.py` into your project package - an account adapter
+  that closes local self-service signup and a social adapter that keeps OIDC
+  first-login provisioning working.
+- Points `ACCOUNT_ADAPTER` and `SOCIALACCOUNT_ADAPTER` at that module from
+  `cloudron_settings.py`, inside the `CLOUDRON_APP_ORIGIN` gate, so the wiring
+  is active on Cloudron and inert in local development. You do not hand-author
+  an adapter.
+
+What you finish by hand - the deploy writes the exact block into
+`CLOUDRON_NEXT_STEPS.md` next to your project:
 
 - Add `django.contrib.sites`, `allauth`, `allauth.account`,
-  `allauth.socialaccount`, and
-  `allauth.socialaccount.providers.openid_connect` to `INSTALLED_APPS`.
+  `allauth.socialaccount`, `allauth.socialaccount.providers.openid_connect`,
+  and `allauth.mfa` to `INSTALLED_APPS`.
 - Set `SITE_ID`.
 - Add `allauth.account.auth_backends.AuthenticationBackend` to
   `AUTHENTICATION_BACKENDS`, keeping
   `django.contrib.auth.backends.ModelBackend` alongside it.
 - Add `allauth.account.middleware.AccountMiddleware` to `MIDDLEWARE`, after
   `django.contrib.auth.middleware.AuthenticationMiddleware`.
+- Set `LOGIN_REDIRECT_URL` - allauth serves no `/accounts/profile/` view, so
+  Django's default post-login redirect would 404.
 - Include `allauth.urls` in your URLconf.
-- Close local self-service signup so Cloudron OIDC is the only way in: point
-  `ACCOUNT_ADAPTER` at an adapter subclass whose `is_open_for_signup` returns
-  `False`. Once you mount `allauth.urls`, `/accounts/signup/` is open by default,
-  which undoes the point of requiring Cloudron accounts.
 - Run `python manage.py migrate` to create allauth's tables.
 
-If you would rather not do this by hand, {doc}`scaffold-new-project` with
-`--sso` wires allauth into the generated project automatically - including
-closing local signup with an adapter - since there is no existing app list or
-URLconf to risk breaking.
+Because the shipped adapters already point `ACCOUNT_ADAPTER` at an
+`is_open_for_signup` that returns `False`, `/accounts/signup/` is closed for you
+once you mount `allauth.urls` - you do not add that step yourself.
+
+If you would rather not touch your app list and URLconf at all,
+{doc}`scaffold-new-project` with `--sso` wires `INSTALLED_APPS`, `MIDDLEWARE`,
+and the URLconf into the generated project automatically, since there is no
+existing configuration to risk breaking.
 
 ## Signing in
 

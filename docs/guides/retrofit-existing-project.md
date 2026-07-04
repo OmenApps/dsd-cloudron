@@ -52,12 +52,14 @@ so they stay opt-in:
   uses the Redis addon as its broker. {doc}`enable-celery` has more
   detail on the flag.
 - `--sso` renders the Cloudron OIDC addon and a django-allauth provider
-  configuration and adds the dependency, but you finish wiring allauth
-  into `INSTALLED_APPS` and `urls.py` yourself - the success message after
-  the deploy spells out the remaining steps. A project scaffolded with
-  `dsd-cloudron new --sso` gets that wiring done automatically; retrofit
-  cannot safely edit your existing URLconf and app list for you.
-  {doc}`enable-sso` covers the rest of the setup.
+  configuration, adds the dependency, and ships a `cloudron_adapters.py` that
+  closes local self-service signup - with `ACCOUNT_ADAPTER` and
+  `SOCIALACCOUNT_ADAPTER` already pointed at it on Cloudron. You finish wiring
+  allauth into `INSTALLED_APPS`, `MIDDLEWARE`, and `urls.py` yourself; the
+  success message and `CLOUDRON_NEXT_STEPS.md` spell out the exact block. A
+  project scaffolded with `dsd-cloudron new --sso` gets that wiring done
+  automatically, since retrofit cannot safely edit your existing URLconf and
+  app list for you. {doc}`enable-sso` covers the rest of the setup.
 
 ## What gets written
 
@@ -65,9 +67,9 @@ Each deploy writes the Cloudron manifest, Dockerfile, `start.sh`,
 supervisor configs, and nginx config, then appends a guarded settings
 block that imports the Cloudron-specific Django settings. It also adds
 the packages your configuration needs - `gunicorn` and `psycopg[binary]`
-always, plus `django-redis`, `celery[redis]`, or `django-allauth[socialaccount]`
-when the matching flag is set. {doc}`/reference/generated-files` describes
-each artifact in detail.
+always, plus `django-redis`, `celery[redis]`, or
+`django-allauth[mfa,socialaccount]` when the matching flag is set.
+{doc}`/reference/generated-files` describes each artifact in detail.
 
 ## Dependency managers
 

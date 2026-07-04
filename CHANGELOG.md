@@ -26,17 +26,26 @@ Hardening fixes found during that verification:
 
 Artifact trust and security hardening:
 
-- The generated `README-cloudron.md` now tells retrofit `--sso` users the truth:
-  django-allauth is added to requirements but NOT auto-wired into their project,
-  with a pointer to the follow-up steps and a note to close local self-service
-  signup. Each deploy also writes a `CLOUDRON_NEXT_STEPS.md` operator aid next to
-  the project with the change summary and follow-up notes.
+- Retrofit `--sso` now ships a `cloudron_adapters.py` (an account adapter that
+  closes local self-service signup and a social adapter that keeps OIDC
+  first-login provisioning) and points `ACCOUNT_ADAPTER`/`SOCIALACCOUNT_ADAPTER`
+  at it on Cloudron, matching what a scaffolded project gets. It installs
+  `django-allauth[mfa,socialaccount]` and writes the exact
+  `INSTALLED_APPS`/`MIDDLEWARE`/`urls.py` wiring block into `README-cloudron.md`
+  and a `CLOUDRON_NEXT_STEPS.md` operator aid; only those app-list and URLconf
+  edits remain yours to apply. The plugin still never edits your `settings.py`
+  or `urls.py`.
 - Harden the generated artifacts: nginx now sets `X-Forwarded-Proto https`
   literally instead of reflecting the inbound header (the one value
   `SECURE_PROXY_SSL_HEADER` trusts); `.dockerignore` excludes common secret files
   (`*.pem`, `*.key`, `local_settings.py`, `.env.*`, service-account JSON, `*.har`)
   so they cannot bake into an image layer; the Cloudron settings pin
   `SECURE_CONTENT_TYPE_NOSNIFF` and `SECURE_REFERRER_POLICY = "same-origin"`.
+- The Cloudron settings also enable `SECURE_SSL_REDIRECT` and a conservative
+  one-hour `SECURE_HSTS_SECONDS` under the same gate. Because nginx pins the
+  forwarded-proto header (above), the redirect is defense in depth and never
+  loops the internal health probe; HSTS starts short and leaves preload and
+  include-subdomains off.
 - Scaffolded `--sso` projects no longer accept local self-service signup: a
   generated account adapter closes `/accounts/signup/` so Cloudron OIDC is the
   only way in, while a social adapter keeps first-login OIDC provisioning working.
