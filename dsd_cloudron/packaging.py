@@ -300,6 +300,11 @@ def render_cloudron_settings(config):
         # it; a retrofit project may not - best-effort).
         "    SECURE_CONTENT_TYPE_NOSNIFF = True\n"
         '    SECURE_REFERRER_POLICY = "same-origin"\n'
+        "    SECURE_SSL_REDIRECT = True\n"
+        "    # HSTS starts conservative; raise toward a year (31536000) once HTTPS is\n"
+        "    # confirmed end to end. Leave INCLUDE_SUBDOMAINS and PRELOAD off - preload\n"
+        "    # is a hard-to-reverse commitment.\n"
+        "    SECURE_HSTS_SECONDS = 3600\n"
     )
 
     blocks.append(

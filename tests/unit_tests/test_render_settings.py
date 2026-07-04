@@ -122,6 +122,28 @@ def test_settings_sso_greenfield_omits_adapter_pointers():
     ast.parse(greenfield)
 
 
+def test_settings_hsts_and_ssl_redirect_inside_gate(monkeypatch):
+    text = _settings()
+    assert "SECURE_SSL_REDIRECT = True" in text
+    assert "SECURE_HSTS_SECONDS = 3600" in text
+    # Preload/include-subdomains stay off by default (hard to reverse).
+    assert "SECURE_HSTS_PRELOAD" not in text
+    assert "SECURE_HSTS_INCLUDE_SUBDOMAINS" not in text
+
+    # Inert with no CLOUDRON_APP_ORIGIN: the whole block is gated.
+    ns_off = {}
+    exec(compile(_settings(), "<cloudron_settings>", "exec"), ns_off)
+    assert "SECURE_SSL_REDIRECT" not in ns_off
+
+    # Present and correct under the gate env.
+    for key, value in _BASE_CLOUDRON_ENV.items():
+        monkeypatch.setenv(key, value)
+    ns_on = {}
+    exec(compile(_settings(), "<cloudron_settings>", "exec"), ns_on)
+    assert ns_on["SECURE_SSL_REDIRECT"] is True
+    assert ns_on["SECURE_HSTS_SECONDS"] == 3600
+
+
 def test_settings_pins_secure_headers():
     # Restate Django's own secure defaults so the headers stay correct even if a
     # project overrode them or a future Django default relaxes. same-origin is the

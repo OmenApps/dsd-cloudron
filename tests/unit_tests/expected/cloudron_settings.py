@@ -17,6 +17,11 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = "same-origin"
+    SECURE_SSL_REDIRECT = True
+    # HSTS starts conservative; raise toward a year (31536000) once HTTPS is
+    # confirmed end to end. Leave INCLUDE_SUBDOMAINS and PRELOAD off - preload
+    # is a hard-to-reverse commitment.
+    SECURE_HSTS_SECONDS = 3600
 
     DATABASES = {
         "default": {
