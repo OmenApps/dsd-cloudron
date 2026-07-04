@@ -55,3 +55,34 @@ jobs:
           pip install -e ".[dev,bake]"
           if [ -n "$DJANGO_SPEC" ]; then pip install "$DJANGO_SPEC"; fi
       - run: python -m pytest -q
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: retrofit-lean
+          - flavor: greenfield-full
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - name: Install the plugin
+        run: pip install -e "."
+      - name: Assemble the build context
+        id: context
+        run: |
+          if [ "${{ matrix.flavor }}" = "retrofit-lean" ]; then
+            CTX="$(mktemp -d)"
+            python tests/build_tests/assemble_retrofit_sample.py "$CTX"
+          else
+            OUT="$(mktemp -d)"
+            dsd-cloudron new "Smoke App" --celery --sso --output-dir "$OUT"
+            CTX="$(find "$OUT" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          fi
+          echo "dir=$CTX" >> "$GITHUB_OUTPUT"
+      - name: Build and boot
+        run: bash tests/build_tests/boot_smoke.sh "${{ steps.context.outputs.dir }}" "${{ matrix.flavor }}"
