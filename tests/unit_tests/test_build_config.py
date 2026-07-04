@@ -147,8 +147,15 @@ def test_deploy_wraps_filesystem_error_as_dsd_error(monkeypatch, tmp_path):
         raise OSError("disk full")
 
     monkeypatch.setattr(pd.packaging, "render_all", boom)
-    with pytest.raises(DSDCommandError):
+    with pytest.raises(DSDCommandError) as excinfo:
         PlatformDeployer().deploy()
+    # Assert the abort message content, so partial_write_failed cannot regress to
+    # an empty or garbled string: it must surface the underlying error, warn the
+    # project may be half-written, and point at the safe re-run flag.
+    message = str(excinfo.value)
+    assert "disk full" in message
+    assert "partially modified" in message
+    assert "--force-overwrite" in message
 
 
 def test_validate_platform_under_guard_sets_name():
