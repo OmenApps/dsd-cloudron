@@ -1,4 +1,4 @@
-"""Direct tests of the four @hookimpl wrappers in dsd_cloudron/deploy.py.
+"""Direct tests of the @hookimpl wrappers in dsd_cloudron/deploy.py.
 
 These wrappers are the real pluggy registration surface core discovers and calls.
 Every other test drives the underlying PlatformDeployer/PluginCLI/validate_cli
@@ -11,6 +11,7 @@ from dsd_cloudron.deploy import (
     dsd_deploy,
     dsd_get_plugin_cli,
     dsd_get_plugin_config,
+    dsd_pre_inspect,
     dsd_validate_cli,
 )
 from dsd_cloudron.plugin_config import plugin_config
@@ -39,6 +40,15 @@ def test_validate_cli_delegates_to_validate_cli(monkeypatch):
     options = object()
     dsd_validate_cli(options)
     assert calls == [options]
+
+
+def test_pre_inspect_delegates_to_uv_retrofit(monkeypatch):
+    # The hook must hand core back exactly what uv_retrofit.prepare returns: a
+    # status message (written by core) when a uv project was materialized, or None
+    # (dropped by pluggy) otherwise.
+    sentinel = "exported uv requirements"
+    monkeypatch.setattr(deploy.uv_retrofit, "prepare", lambda: sentinel)
+    assert dsd_pre_inspect() == sentinel
 
 
 def test_deploy_delegates_to_platform_deployer(monkeypatch):

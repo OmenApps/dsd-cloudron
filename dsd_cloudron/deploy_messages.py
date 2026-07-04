@@ -84,6 +84,35 @@ def partial_write_failed(error):
     )
 
 
+def uv_requirements_exported(req_path):
+    """Status note when a uv project's lock is materialized for core.
+
+    Core detects only req_txt/poetry/pipenv. This runs in dsd_pre_inspect, before
+    core's inspection, so a uv-only project is exported to a requirements.txt that
+    core then reads as req_txt. Report it so the generated (and staged) file is not
+    a surprise.
+    """
+    return (
+        f"  Detected a uv project; exported your locked dependencies to "
+        f"{req_path} so the deploy can proceed. It has been staged for you."
+    )
+
+
+def uv_export_failed(detail):
+    """Abort message when exporting a uv project's lock fails.
+
+    `uv export --frozen` fails if uv is missing or the lock is out of date. Name
+    the likely remedy so the user can fix it and re-run rather than seeing a raw
+    subprocess error.
+    """
+    return (
+        f"\nCould not export your uv dependencies to a requirements file for the "
+        f"Cloudron deploy:\n{detail}\n"
+        "Make sure uv is installed and your lock is current (`uv lock`), then "
+        "re-run the deploy.\n"
+    )
+
+
 def requirements_export_failed(manager, detail):
     """Abort message when exporting the locked requirements for the image fails.
 

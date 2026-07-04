@@ -11,6 +11,15 @@ configuration it needs.
 pip install dsd-cloudron
 ```
 
+If you manage your project with [uv](https://docs.astral.sh/uv/), add it to
+your environment instead:
+
+```bash
+uv add dsd-cloudron
+```
+
+Either command pulls in django-simple-deploy along with the plugin.
+
 ## Install the Cloudron CLI
 
 Deploying to a Cloudron server also requires the `cloudron` command line

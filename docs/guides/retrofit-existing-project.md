@@ -69,6 +69,24 @@ always, plus `django-redis`, `celery[redis]`, or `django-allauth[socialaccount]`
 when the matching flag is set. {doc}`/reference/generated-files` describes
 each artifact in detail.
 
+## Dependency managers
+
+`dsd-cloudron` works whether your project pins dependencies with a
+`requirements.txt`, Poetry, Pipenv, or [uv](https://docs.astral.sh/uv/):
+
+- With a `requirements.txt`, the deploy appends the packages above to it
+  directly.
+- With Poetry or Pipenv, the deploy exports your locked dependencies to a
+  `requirements.txt` for the Cloudron image, so those tools never run inside
+  the build.
+- With uv - a `uv.lock` and no `requirements.txt` - the deploy exports your
+  lock to a `requirements.txt` up front and stages it for you, then follows
+  the same path. The export runs `uv export --frozen`, so your lock must be
+  current; run `uv lock` first if the deploy reports it is out of date.
+
+In every case the Cloudron image installs the resulting `requirements.txt`
+with uv.
+
 ## Re-running the deploy
 
 Re-running `manage.py deploy` is safe, but it is not silently idempotent.
