@@ -40,7 +40,7 @@ def test_all_optional_requirements(monkeypatch):
         ("psycopg[binary]", ">=3.1.12"),
         ("django-redis", ">=5.4"),
         ("celery[redis]", ">=5.3"),
-        ("django-allauth[socialaccount]", ">=65"),
+        ("django-allauth[mfa,socialaccount]", ">=65"),
     ]
 
 

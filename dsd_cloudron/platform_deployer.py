@@ -239,14 +239,15 @@ class PlatformDeployer:
         # The deploy dependencies the generated config needs, on top of whatever
         # the user already depends on. psycopg[binary] is psycopg3 (native in
         # Django 4.2+); celery[redis] pulls the redis broker transport; the allauth
-        # socialaccount extra pulls the OIDC runtime deps the provider imports.
+        # [mfa,socialaccount] extras pull the OIDC runtime deps the provider imports
+        # plus MFA support, matching what greenfield ships.
         requirements = ["gunicorn", "psycopg[binary]"]
         if plugin_config.enable_redis:
             requirements.append("django-redis")
         if plugin_config.enable_celery:
             requirements.append("celery[redis]")
         if plugin_config.enable_sso:
-            requirements.append("django-allauth[socialaccount]")
+            requirements.append("django-allauth[mfa,socialaccount]")
 
         if dsd_config.pkg_manager in ("poetry", "pipenv"):
             # These images install from a requirements.txt exported from the user's
