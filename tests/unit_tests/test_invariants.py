@@ -7,6 +7,7 @@ from dsd_cloudron.packaging import (
     render_nginx_conf,
     render_readme,
     render_celery_app,
+    render_cloudron_adapters,
 )
 
 PINNED_BASE = "FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c"
@@ -80,6 +81,7 @@ def test_invariant_no_unrendered_template_vars():
         render_nginx_conf(config),
         render_readme(config),
         render_celery_app(config),
+        render_cloudron_adapters(config),
     ] + list(render_supervisor_confs(config).values())
     for text in rendered:
         assert "INVALID_TEMPLATE_VAR" not in text

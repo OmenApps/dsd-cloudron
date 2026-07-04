@@ -94,3 +94,24 @@ def test_force_overwrites(tmp_path):
     result = render_all(_config(), tmp_path, force=True)
     assert manifest in result.written
     assert json.loads(manifest.read_text())["manifestVersion"] == 2
+
+
+def test_render_all_sso_writes_cloudron_adapters(tmp_path):
+    result = render_all(_config(enable_sso=True), tmp_path)
+    adapters = tmp_path / "blog" / "cloudron_adapters.py"
+    assert adapters in result.written
+    assert adapters.exists()
+
+
+def test_render_all_greenfield_sso_omits_cloudron_adapters(tmp_path):
+    result = render_all(_config(enable_sso=True, greenfield=True), tmp_path)
+    adapters = tmp_path / "blog" / "cloudron_adapters.py"
+    assert adapters not in result.written
+    assert not adapters.exists()
+
+
+def test_render_all_without_sso_omits_cloudron_adapters(tmp_path):
+    result = render_all(_config(), tmp_path)
+    adapters = tmp_path / "blog" / "cloudron_adapters.py"
+    assert adapters not in result.written
+    assert not adapters.exists()

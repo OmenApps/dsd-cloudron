@@ -56,6 +56,8 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
     DEFAULT_FROM_EMAIL = os.environ.get("CLOUDRON_MAIL_FROM", "")
     SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
+    ACCOUNT_ADAPTER = "blog.cloudron_adapters.NoSignupAccountAdapter"
+    SOCIALACCOUNT_ADAPTER = "blog.cloudron_adapters.CloudronSocialAccountAdapter"
     if os.environ.get("CLOUDRON_OIDC_ISSUER"):
         SOCIALACCOUNT_PROVIDERS = {
             "openid_connect": {

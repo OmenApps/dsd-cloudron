@@ -34,7 +34,7 @@ deploy step ensures they end up in the `requirements.txt` the image builds from 
 adding them directly for a requirements.txt project, or writing a `requirements.txt`
 exported from your lock for a Poetry or Pipenv project. The packages are
 `gunicorn` and a PostgreSQL driver (`psycopg[binary]`) always; `django-redis` when
-Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[socialaccount]`
+Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[mfa,socialaccount]`
 when SSO is enabled. If a needed package is missing, the image builds but the app
 fails to start.
 

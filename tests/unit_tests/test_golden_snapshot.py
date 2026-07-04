@@ -5,6 +5,7 @@ import pytest
 from dsd_cloudron.packaging import (
     CloudronAppConfig,
     render_celery_app,
+    render_cloudron_adapters,
     render_cloudron_settings,
     render_dockerfile,
     render_manifest,
@@ -99,6 +100,11 @@ CASES = [
         lambda: render_cloudron_settings(_celery_sso_config()),
         REFERENCE / "celery_sso.cloudron_settings.py",
         id="celery_sso-settings",
+    ),
+    pytest.param(
+        lambda: render_cloudron_adapters(_celery_sso_config()),
+        EXPECTED / "cloudron_adapters.py",
+        id="cloudron-adapters",
     ),
     # render_celery_app depends only on project_name, so this renders the same
     # bytes as default-celery - but it is the sole OFFLINE guard for the shared

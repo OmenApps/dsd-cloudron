@@ -34,7 +34,7 @@ deploy step ensures they end up in the `requirements.txt` the image builds from 
 adding them directly for a requirements.txt project, or writing a `requirements.txt`
 exported from your lock for a Poetry or Pipenv project. The packages are
 `gunicorn` and a PostgreSQL driver (`psycopg[binary]`) always; `django-redis` when
-Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[socialaccount]`
+Redis is enabled; `celery[redis]` when Celery is enabled; `django-allauth[mfa,socialaccount]`
 when SSO is enabled. If a needed package is missing, the image builds but the app
 fails to start.
 {% if enable_sso %}
@@ -45,13 +45,14 @@ provider is in `INSTALLED_APPS`, `AUTHENTICATION_BACKENDS` keeps the model backe
 and adds allauth's, the account middleware is installed, and `allauth.urls` is
 mounted. Local self-service signup is disabled (a custom `ACCOUNT_ADAPTER`), so
 Cloudron OIDC is the way in and the local `admin` is a break-glass account.
-{% else %}`django-allauth[socialaccount]` is added to your requirements and a
-`SOCIALACCOUNT_PROVIDERS` block is written, but allauth is NOT auto-wired into your
-project - a retrofit deploy will not rewrite your `INSTALLED_APPS` or `urls.py`.
-Finish the wiring yourself: see `CLOUDRON_NEXT_STEPS.md` (written next to this file
-after each deploy) and the enable-sso guide. Close local self-service signup at the
-same time - set `ACCOUNT_ADAPTER` to an adapter whose `is_open_for_signup` returns
-`False` - or `/accounts/signup/` stays open once you mount `allauth.urls`.
+{% else %}`django-allauth[mfa,socialaccount]` is added to your requirements, a
+`SOCIALACCOUNT_PROVIDERS` block is written, and the account and social adapters were
+shipped as `cloudron_adapters.py` with `ACCOUNT_ADAPTER` and `SOCIALACCOUNT_ADAPTER`
+already pointed at them in `cloudron_settings.py` - so on Cloudron, local self-service
+signup is closed while OIDC first-login provisioning keeps working. Your
+`INSTALLED_APPS`, `MIDDLEWARE`, and `urls.py` are NOT auto-wired - a retrofit deploy
+will not rewrite them. Finish that wiring yourself: see `CLOUDRON_NEXT_STEPS.md`
+(written next to this file after each deploy), which carries the exact copy-paste block.
 {% endif %}{% endif %}
 ## Deploy and iterate
 

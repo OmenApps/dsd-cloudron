@@ -354,8 +354,19 @@ def render_cloudron_settings(config):
         )
 
     if config.enable_sso:
+        # The retrofit path ships cloudron_adapters.py and points the allauth
+        # adapters at it here, so applying the wiring block closes local signup
+        # without hand-authoring an adapter. Greenfield sets these in its own
+        # settings.py against its accounts app, so skip them there to avoid a
+        # double set that would name a module greenfield does not ship.
+        adapter_pointers = ""
+        if not config.greenfield:
+            adapter_pointers = (
+                f'    ACCOUNT_ADAPTER = "{p}.cloudron_adapters.NoSignupAccountAdapter"\n'
+                f'    SOCIALACCOUNT_ADAPTER = "{p}.cloudron_adapters.CloudronSocialAccountAdapter"\n'
+            )
         blocks.append(
-            '    if os.environ.get("CLOUDRON_OIDC_ISSUER"):\n'
+            adapter_pointers + '    if os.environ.get("CLOUDRON_OIDC_ISSUER"):\n'
             "        SOCIALACCOUNT_PROVIDERS = {\n"
             '            "openid_connect": {\n'
             '                "APPS": [\n'
@@ -416,6 +427,17 @@ def render_celery_app(config):
     return _render_template("celery_app", _context(config))
 
 
+def render_cloudron_adapters(config):
+    """Render the standalone allauth adapters for an assisted retrofit SSO wiring.
+
+    Shipped into the retrofit project package as cloudron_adapters.py so the operator
+    can point ACCOUNT_ADAPTER/SOCIALACCOUNT_ADAPTER at a real file instead of
+    hand-authoring one. The greenfield scaffolder ships its own accounts/adapters.py,
+    so render_all writes this only for the retrofit path (enable_sso and not greenfield).
+    """
+    return _render_template("cloudron_adapters", _context(config))
+
+
 def render_all(config, target_dir, force=False):
     """Write the full Cloudron artifact set into target_dir.
 
@@ -447,6 +469,13 @@ def render_all(config, target_dir, force=False):
         result,
         force,
     )
+    if config.enable_sso and not config.greenfield:
+        _write(
+            pkg_dir / "cloudron_adapters.py",
+            render_cloudron_adapters(config),
+            result,
+            force,
+        )
     # celery.py belongs to the project package and only exists when Celery is on;
     # the worker/beat supervisor confs below import it.
     if config.enable_celery:

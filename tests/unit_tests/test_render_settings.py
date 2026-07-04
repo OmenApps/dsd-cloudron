@@ -96,6 +96,29 @@ def test_settings_sso_conditional():
     assert "SOCIALACCOUNT_PROVIDERS" not in off
 
 
+def test_settings_sso_sets_retrofit_adapter_pointers():
+    retrofit = _settings(enable_sso=True)
+    assert (
+        'ACCOUNT_ADAPTER = "blog.cloudron_adapters.NoSignupAccountAdapter"' in retrofit
+    )
+    assert (
+        'SOCIALACCOUNT_ADAPTER = "blog.cloudron_adapters.CloudronSocialAccountAdapter"'
+        in retrofit
+    )
+
+
+def test_settings_sso_greenfield_omits_adapter_pointers():
+    config = CloudronAppConfig(
+        project_name="blog", app_id="com.example.blog", enable_sso=True, greenfield=True
+    )
+    greenfield = render_cloudron_settings(config)
+    # Greenfield wires ACCOUNT_ADAPTER in its own settings.py against its accounts
+    # app, so cloudron_settings.py must not set it (and must not name the retrofit
+    # cloudron_adapters module greenfield does not ship).
+    assert "ACCOUNT_ADAPTER" not in greenfield
+    assert "cloudron_adapters" not in greenfield
+
+
 def test_settings_pins_secure_headers():
     # Restate Django's own secure defaults so the headers stay correct even if a
     # project overrode them or a future Django default relaxes. same-origin is the

@@ -31,7 +31,7 @@ def test_extension_less_templates_ship_with_package():
     # settings_import and celery_app have no extension; a naive "*.conf"/"*.sh"
     # package-data glob would silently drop them from the wheel.
     templates_dir = PKG_ROOT / "templates"
-    for name in ("settings_import", "celery_app"):
+    for name in ("settings_import", "celery_app", "cloudron_adapters"):
         assert (
             templates_dir / name
         ).exists(), (

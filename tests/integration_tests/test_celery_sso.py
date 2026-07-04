@@ -36,6 +36,12 @@ def test_celery_sso_artifacts(tmp_project, request):
     )
     hf.check_reference_file(
         tmp_project,
+        "blog/cloudron_adapters.py",
+        "dsd-cloudron",
+        reference_filename="celery_sso.cloudron_adapters.py",
+    )
+    hf.check_reference_file(
+        tmp_project,
         "CloudronManifest.json",
         "dsd-cloudron",
         reference_filename="celery_sso.CloudronManifest.json",

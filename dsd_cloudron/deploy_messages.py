@@ -176,20 +176,40 @@ def followup_notes(config):
         )
     if config.enable_sso:
         notes.append(
-            "- SSO: the Cloudron oidc addon and a SOCIALACCOUNT_PROVIDERS block "
-            "were written, but django-allauth is not wired into your project yet. "
-            "Add django.contrib.sites, allauth, allauth.account, "
-            "allauth.socialaccount, and "
-            "allauth.socialaccount.providers.openid_connect to INSTALLED_APPS; set "
-            "SITE_ID; set AUTHENTICATION_BACKENDS to keep "
-            "django.contrib.auth.backends.ModelBackend and add "
-            "allauth.account.auth_backends.AuthenticationBackend; add "
-            "allauth.account.middleware.AccountMiddleware to MIDDLEWARE after "
-            "django.contrib.auth.middleware.AuthenticationMiddleware; include "
-            "allauth.urls; and run migrate. Close local self-service signup at the "
-            "same time - set ACCOUNT_ADAPTER to an adapter whose is_open_for_signup "
-            "returns False - or /accounts/signup/ stays open once allauth.urls is "
-            "mounted. Automated SSO wiring is planned for a later release."
+            "- SSO: the Cloudron oidc addon, a SOCIALACCOUNT_PROVIDERS block, and the "
+            "account/social adapters were written. cloudron_adapters.py closes local "
+            "self-service signup while keeping OIDC first-login provisioning, and "
+            "cloudron_settings.py already points ACCOUNT_ADAPTER and SOCIALACCOUNT_ADAPTER "
+            "at it on Cloudron. django-allauth[mfa,socialaccount] is installed, so MFA is available. "
+            "django-allauth is not wired into your project yet - the plugin does not edit "
+            "your settings.py or urls.py. Apply this block by hand, adjusting to your "
+            "project: skip any entry you already have (a second django.contrib.sites or "
+            "LOGIN_REDIRECT_URL would duplicate or override yours), and make sure TEMPLATES "
+            "includes django.template.context_processors.request (a Django startproject "
+            "default allauth needs; manage.py check flags it if absent). Then run "
+            "`python manage.py migrate`:\n"
+            "\n"
+            "    # settings.py - add to INSTALLED_APPS:\n"
+            '    "django.contrib.sites",\n'
+            '    "allauth",\n'
+            '    "allauth.account",\n'
+            '    "allauth.socialaccount",\n'
+            '    "allauth.socialaccount.providers.openid_connect",\n'
+            '    "allauth.mfa",\n'
+            "\n"
+            "    # settings.py - add to MIDDLEWARE, after AuthenticationMiddleware:\n"
+            '    "allauth.account.middleware.AccountMiddleware",\n'
+            "\n"
+            "    # settings.py - site id, auth backends, post-login landing:\n"
+            "    SITE_ID = 1\n"
+            "    AUTHENTICATION_BACKENDS = [\n"
+            '        "django.contrib.auth.backends.ModelBackend",\n'
+            '        "allauth.account.auth_backends.AuthenticationBackend",\n'
+            "    ]\n"
+            '    LOGIN_REDIRECT_URL = "/"  # allauth serves no /accounts/profile/ view\n'
+            "\n"
+            "    # urls.py - add to urlpatterns:\n"
+            '    path("accounts/", include("allauth.urls")),'
         )
     return "\n\n".join(notes)
 
@@ -213,6 +233,11 @@ def changes_summary(config, added_requirements):
         "- Wrote CLOUDRON_NEXT_STEPS.md next to your project - a copy of this "
         "summary and any follow-up notes you can keep after the output scrolls away.",
     ]
+    if config.enable_sso and not config.greenfield:
+        lines.append(
+            "- Wrote cloudron_adapters.py into your project package (the allauth "
+            "account and social adapters cloudron_settings.py points at)."
+        )
     if added_requirements:
         lines.append(f"- Added requirements: {', '.join(added_requirements)}.")
     if config.pkg_manager in ("poetry", "pipenv"):
