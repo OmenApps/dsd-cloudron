@@ -76,7 +76,9 @@ jobs:
         run: |
           PINNED="sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c"
           CURRENT="$(docker buildx imagetools inspect cloudron/base:5.0.0 --format '{{.Manifest.Digest}}' 2>/dev/null || echo unknown)"
-          if [ "$CURRENT" = "$PINNED" ]; then
+          if [ "$CURRENT" = "unknown" ]; then
+            echo "could not resolve cloudron/base:5.0.0 (registry unreachable); skipping the drift check"
+          elif [ "$CURRENT" = "$PINNED" ]; then
             echo "cloudron/base:5.0.0 still matches the pinned digest"
           else
             echo "::warning::cloudron/base:5.0.0 now resolves to ${CURRENT} (pinned ${PINNED})"
