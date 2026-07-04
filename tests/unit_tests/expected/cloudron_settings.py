@@ -17,6 +17,11 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = "same-origin"
+    # TLS is enforced at the Cloudron edge; nginx.conf pins X-Forwarded-Proto
+    # to https, so SECURE_PROXY_SSL_HEADER always reads secure and this redirect
+    # never actually fires. It is defense in depth, and that pinned header is the
+    # load-bearing invariant - reflecting $scheme instead would 301-loop the
+    # internal health probe. Keep the two in step.
     SECURE_SSL_REDIRECT = True
     # HSTS starts conservative; raise toward a year (31536000) once HTTPS is
     # confirmed end to end. Leave INCLUDE_SUBDOMAINS and PRELOAD off - preload

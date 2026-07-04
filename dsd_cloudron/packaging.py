@@ -300,6 +300,11 @@ def render_cloudron_settings(config):
         # it; a retrofit project may not - best-effort).
         "    SECURE_CONTENT_TYPE_NOSNIFF = True\n"
         '    SECURE_REFERRER_POLICY = "same-origin"\n'
+        "    # TLS is enforced at the Cloudron edge; nginx.conf pins X-Forwarded-Proto\n"
+        "    # to https, so SECURE_PROXY_SSL_HEADER always reads secure and this redirect\n"
+        "    # never actually fires. It is defense in depth, and that pinned header is the\n"
+        "    # load-bearing invariant - reflecting $scheme instead would 301-loop the\n"
+        "    # internal health probe. Keep the two in step.\n"
         "    SECURE_SSL_REDIRECT = True\n"
         "    # HSTS starts conservative; raise toward a year (31536000) once HTTPS is\n"
         "    # confirmed end to end. Leave INCLUDE_SUBDOMAINS and PRELOAD off - preload\n"

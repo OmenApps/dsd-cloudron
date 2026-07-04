@@ -123,6 +123,10 @@ def test_settings_sso_greenfield_omits_adapter_pointers():
 
 
 def test_settings_hsts_and_ssl_redirect_inside_gate(monkeypatch):
+    # Isolate from an ambient CLOUDRON_APP_ORIGIN (plausible in a Cloudron-tooling
+    # repo where a developer sources deploy env vars) so the "inert" exec below
+    # actually runs off Cloudron.
+    monkeypatch.delenv("CLOUDRON_APP_ORIGIN", raising=False)
     text = _settings()
     assert "SECURE_SSL_REDIRECT = True" in text
     assert "SECURE_HSTS_SECONDS = 3600" in text
@@ -297,6 +301,52 @@ def test_custom_settings_gate_open_flags_do_not_block_on_fifo(tmp_path):
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, previous)
+
+
+def test_custom_settings_gate_propagates_syntax_error(monkeypatch):
+    # The rewrite deliberately puts exec() OUTSIDE the read try so a SyntaxError in
+    # a trusted, root-owned override propagates instead of being silently swallowed.
+    # The structural test only pins exec's placement; prove the behavior: a root-owned
+    # regular readable file whose content is invalid Python must raise out of the exec.
+    import io
+    import os
+
+    for key, value in _BASE_CLOUDRON_ENV.items():
+        monkeypatch.setenv(key, value)
+
+    path = "/app/data/custom_settings.py"
+    fake_fd = 987
+
+    class FakeStat:
+        st_uid = 0
+        st_mode = 0o100000 | 0o640  # regular file, root-owned, not group-writable
+
+    real_open = os.open
+
+    def fake_open(p, flags, *a, **k):
+        if p == path:
+            return fake_fd
+        return real_open(p, flags, *a, **k)
+
+    real_fstat = os.fstat
+
+    def fake_fstat(fd):
+        if fd == fake_fd:
+            return FakeStat()
+        return real_fstat(fd)
+
+    real_fdopen = os.fdopen
+
+    def fake_fdopen(fd, *a, **k):
+        if fd == fake_fd:
+            return io.StringIO("def broken(:\n")
+        return real_fdopen(fd, *a, **k)
+
+    monkeypatch.setattr(os, "open", fake_open)
+    monkeypatch.setattr(os, "fstat", fake_fstat)
+    monkeypatch.setattr(os, "fdopen", fake_fdopen)
+    with pytest.raises(SyntaxError):
+        exec(compile(_settings(), "<cloudron_settings>", "exec"), {})
 
 
 def test_settings_execute_default_config(monkeypatch):

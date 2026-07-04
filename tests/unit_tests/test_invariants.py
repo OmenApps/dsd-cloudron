@@ -70,6 +70,19 @@ def test_invariant_plain_http_no_tls_in_nginx():
     assert "listen 8000;" in text
 
 
+def test_invariant_ssl_redirect_requires_pinned_forwarded_proto():
+    # SECURE_SSL_REDIRECT is only loop-safe because nginx pins X-Forwarded-Proto to
+    # https (which SECURE_PROXY_SSL_HEADER trusts), so Django always sees requests as
+    # secure and never issues the 301. If a future edit keeps the redirect on but
+    # reflects the inbound header (or drops the pin), the internal plain-HTTP health
+    # probe would 301-loop and fail the install. Tie the two artifacts together.
+    settings = render_cloudron_settings(_full())
+    if "SECURE_SSL_REDIRECT = True" in settings:
+        nginx = render_nginx_conf(_full())
+        assert "proxy_set_header X-Forwarded-Proto https;" in nginx
+        assert "$http_x_forwarded_proto" not in nginx
+
+
 def test_invariant_no_unrendered_template_vars():
     # The standalone Engine uses string_if_invalid="INVALID_TEMPLATE_VAR[%s]", so
     # any template/context drift (an undefined variable) shows up as the sentinel
