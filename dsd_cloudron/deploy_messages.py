@@ -235,7 +235,7 @@ def changes_summary(config, added_requirements):
         "- Wrote CLOUDRON_NEXT_STEPS.md next to your project - a copy of this "
         "summary and any follow-up notes you can keep after the output scrolls away.",
     ]
-    if config.enable_sso and not config.greenfield:
+    if config.ships_retrofit_adapters:
         lines.append(
             "- Wrote cloudron_adapters.py into your project package (the allauth "
             "account and social adapters cloudron_settings.py points at)."

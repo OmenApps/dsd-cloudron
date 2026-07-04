@@ -96,6 +96,15 @@ class CloudronAppConfig:
         """Human title for the manifest; derived from project_name if unset."""
         return self.title or self.project_name.replace("_", " ").title()
 
+    @property
+    def ships_retrofit_adapters(self):
+        """True when this deploy writes cloudron_adapters.py and points the allauth
+        adapters at it: retrofit SSO only. Greenfield brings its own
+        accounts/adapters.py and wires the pointers in its own settings.py, so it
+        must never claim or reference the retrofit module. The settings pointers,
+        the file write, and the changes summary all gate on this one signal."""
+        return self.enable_sso and not self.greenfield
+
 
 def _context(config):
     """Template context shared by the flat-text render functions.
@@ -370,7 +379,7 @@ def render_cloudron_settings(config):
         # settings.py against its accounts app, so skip them there to avoid a
         # double set that would name a module greenfield does not ship.
         adapter_pointers = ""
-        if not config.greenfield:
+        if config.ships_retrofit_adapters:
             adapter_pointers = (
                 f'    ACCOUNT_ADAPTER = "{p}.cloudron_adapters.NoSignupAccountAdapter"\n'
                 f'    SOCIALACCOUNT_ADAPTER = "{p}.cloudron_adapters.CloudronSocialAccountAdapter"\n'
@@ -491,7 +500,7 @@ def render_all(config, target_dir, force=False):
         result,
         force,
     )
-    if config.enable_sso and not config.greenfield:
+    if config.ships_retrofit_adapters:
         _write(
             pkg_dir / "cloudron_adapters.py",
             render_cloudron_adapters(config),
