@@ -117,6 +117,9 @@ def test_settings_sso_greenfield_omits_adapter_pointers():
     # cloudron_adapters module greenfield does not ship).
     assert "ACCOUNT_ADAPTER" not in greenfield
     assert "cloudron_adapters" not in greenfield
+    # The greenfield+sso shape (empty adapter_pointers prefix) must still be valid
+    # Python; the parametrized sweep only varies the retrofit shape.
+    ast.parse(greenfield)
 
 
 def test_settings_pins_secure_headers():

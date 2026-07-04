@@ -32,6 +32,14 @@ def test_followup_notes_without_sso_has_no_wiring_block():
     assert "allauth" not in followup_notes(_config())
 
 
+def test_followup_notes_celery_only_has_no_allauth_leakage():
+    # With a note present (celery on) but sso off, the two branches must stay
+    # independently gated - the celery note appears and no allauth wiring leaks in.
+    notes = followup_notes(_config(enable_celery=True))
+    assert "Celery" in notes
+    assert "allauth" not in notes
+
+
 def test_changes_summary_names_adapters_on_sso():
     from dsd_cloudron.deploy_messages import changes_summary
 

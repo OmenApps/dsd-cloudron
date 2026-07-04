@@ -180,11 +180,13 @@ def followup_notes(config):
             "account/social adapters were written. cloudron_adapters.py closes local "
             "self-service signup while keeping OIDC first-login provisioning, and "
             "cloudron_settings.py already points ACCOUNT_ADAPTER and SOCIALACCOUNT_ADAPTER "
-            "at it on Cloudron. django-allauth[mfa,socialaccount] is installed, so MFA is available. "
+            "at it on Cloudron (these, and the SOCIALACCOUNT_PROVIDERS block, override any "
+            "allauth adapters or providers you already configured - but only on Cloudron). "
+            "django-allauth[mfa,socialaccount] is installed, so MFA is available. "
             "django-allauth is not wired into your project yet - the plugin does not edit "
             "your settings.py or urls.py. Apply this block by hand, adjusting to your "
-            "project: skip any entry you already have (a second django.contrib.sites or "
-            "LOGIN_REDIRECT_URL would duplicate or override yours), and make sure TEMPLATES "
+            "project: skip any entry you already have (a second django.contrib.sites, SITE_ID, "
+            "or LOGIN_REDIRECT_URL would duplicate or override yours), and make sure TEMPLATES "
             "includes django.template.context_processors.request (a Django startproject "
             "default allauth needs; manage.py check flags it if absent). Then run "
             "`python manage.py migrate`:\n"
@@ -208,7 +210,7 @@ def followup_notes(config):
             "    ]\n"
             '    LOGIN_REDIRECT_URL = "/"  # allauth serves no /accounts/profile/ view\n'
             "\n"
-            "    # urls.py - add to urlpatterns:\n"
+            "    # urls.py - add include to your django.urls import, then to urlpatterns:\n"
             '    path("accounts/", include("allauth.urls")),'
         )
     return "\n\n".join(notes)

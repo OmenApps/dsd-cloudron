@@ -101,9 +101,13 @@ CASES = [
         REFERENCE / "celery_sso.cloudron_settings.py",
         id="celery_sso-settings",
     ),
+    # render_cloudron_adapters depends only on the template (no config vars), so
+    # this reads the shared celery_sso reference - the same file the integration
+    # suite diffs - rather than a separate EXPECTED copy, keeping one source of
+    # truth checked both offline and in CI.
     pytest.param(
         lambda: render_cloudron_adapters(_celery_sso_config()),
-        EXPECTED / "cloudron_adapters.py",
+        REFERENCE / "celery_sso.cloudron_adapters.py",
         id="cloudron-adapters",
     ),
     # render_celery_app depends only on project_name, so this renders the same

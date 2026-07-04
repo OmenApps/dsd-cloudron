@@ -1,7 +1,14 @@
+import ast
 import json
+import re
 import stat
 
-from dsd_cloudron.packaging import CloudronAppConfig, render_all
+from dsd_cloudron.packaging import (
+    CloudronAppConfig,
+    render_all,
+    render_cloudron_adapters,
+    render_cloudron_settings,
+)
 
 
 def _config(**kwargs):
@@ -115,3 +122,25 @@ def test_render_all_without_sso_omits_cloudron_adapters(tmp_path):
     adapters = tmp_path / "blog" / "cloudron_adapters.py"
     assert adapters not in result.written
     assert not adapters.exists()
+
+
+def test_cloudron_adapters_is_valid_python():
+    # The shipped module is a real file the retrofit user's settings import from,
+    # so a template edit that breaks its syntax must fail here (django-allauth is
+    # not a dev dependency, so ast.parse - not exec - is the right-sized check).
+    ast.parse(render_cloudron_adapters(_config()))
+
+
+def test_settings_adapter_pointers_name_real_classes():
+    # cloudron_settings.py hardcodes the dotted adapter paths as string literals,
+    # decoupled from the class definitions in the template. Rename a class in one
+    # place and the generated project ImportErrors on Cloudron while every other
+    # test still passes - this ties the two artifacts together so that cannot land.
+    adapters_src = render_cloudron_adapters(_config())
+    defined = set(re.findall(r"^class (\w+)", adapters_src, re.MULTILINE))
+    settings_src = render_cloudron_settings(_config(enable_sso=True))
+    referenced = set(
+        re.findall(r'ADAPTER = "blog\.cloudron_adapters\.(\w+)"', settings_src)
+    )
+    assert referenced, "no adapter pointers found in the rendered settings"
+    assert referenced <= defined
