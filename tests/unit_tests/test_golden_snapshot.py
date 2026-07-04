@@ -100,6 +100,11 @@ CASES = [
         REFERENCE / "celery_sso.cloudron_settings.py",
         id="celery_sso-settings",
     ),
+    # render_celery_app depends only on project_name, so this renders the same
+    # bytes as default-celery - but it is the sole OFFLINE guard for the shared
+    # reference_files/celery_sso.celery.py fixture (the integration suite that
+    # otherwise covers it is skipped when the harness is absent), so it is not the
+    # redundant case it looks like.
     pytest.param(
         lambda: render_celery_app(_celery_sso_config()),
         REFERENCE / "celery_sso.celery.py",
