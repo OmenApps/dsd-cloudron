@@ -6,23 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from packaging.version import Version
+
 from tests.build_tests.assemble_retrofit_sample import assemble_retrofit_sample
 
 _SCRIPT = Path(__file__).with_name("assemble_retrofit_sample.py")
-
-
-def _lower_bound(spec):
-    """Zero-padded numeric tuple for the lower bound of a `>=X.Y.Z` pin."""
-    digits = [int(part) for part in spec.split(".") if part.isdigit()]
-    return tuple(digits)
-
-
-def _at_least(pinned, floor):
-    p, f = list(_lower_bound(pinned)), list(_lower_bound(floor))
-    width = max(len(p), len(f))
-    p += [0] * (width - len(p))
-    f += [0] * (width - len(f))
-    return p >= f
 
 
 def test_dockerfile_is_requirements_shape(tmp_path):
@@ -88,7 +76,7 @@ def test_requirements_meet_deployer_floors(tmp_path):
     )
     for package, floor in _REQUIREMENT_FLOORS.items():
         if package in pinned:
-            assert _at_least(pinned[package], floor.lstrip(">=")), (
+            assert Version(pinned[package]) >= Version(floor.lstrip(">=")), (
                 f"{package} pinned at >={pinned[package]} is below the deployer "
                 f"floor {floor}"
             )
