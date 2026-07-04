@@ -11,6 +11,12 @@ Cloudron imposes - a readonly root filesystem with writable `/run` and `/app/dat
 only, and the `CLOUDRON_*` addon environment - then polls the health check for a
 2xx. Postgres and Redis run as local containers standing in for the addons.
 
+A 2xx proves the image builds, the settings import cleanly with every addon
+variable present, collectstatic and migrate run (so Postgres is genuinely
+reached), and the app serves HTTP. Redis, mail, and OIDC are validated only at
+settings import, not by a live round-trip - the static health view does not
+touch them.
+
 The retrofit cell hand-assembles a minimal requirements.txt project and renders
 the artifact set through the packaging core, so it validates the generated
 Dockerfile, settings, and boot - not the deploy-time dependency resolution
