@@ -31,11 +31,14 @@ _GOSU_SHIM = '#!/bin/bash\n# Drop the leading cloudron:cloudron arg and run the 
 def _relocate(script, root):
     """Rewrite start.sh's absolute roots under `root` and neutralize the exec line.
 
-    Replace /run before /app/ so neither insertion is re-matched by the other; a
-    pytest tmp path never contains "/app" or "/run" at a path-separator boundary,
-    so the substitutions stay disjoint. The /app/ replacement (with its trailing
-    slash) rewrites /app/data, /app/code, and the /app/data/custom_settings.py
-    prune path in one pass.
+    Replace /run before /app/ so the two passes stay disjoint. This is safe even
+    when `root` itself contains "/run" or "/app" (e.g. TMPDIR=/run/user/<uid> on a
+    systemd host): str.replace makes a single left-to-right pass and never
+    re-scans what it inserted, and the same `root` string is spliced into both the
+    script and the test's expected paths, so any /run|/app inside it stays inert
+    and internally consistent. The /app/ replacement (with its trailing slash)
+    rewrites /app/data, /app/code, and the /app/data/custom_settings.py prune path
+    in one pass.
     """
     script = script.replace(_EXEC_LINE, 'echo "==> supervisor start stubbed"')
     script = script.replace("/run", f"{root}/run")
@@ -46,7 +49,7 @@ def _relocate(script, root):
 class _Harness:
     """A relocated start.sh plus the stub binaries/files it needs to run offline."""
 
-    def __init__(self, tmp_path):
+    def __init__(self, tmp_path, with_custom_settings=True):
         self.root = tmp_path
         self.data = tmp_path / "app" / "data"
         self.code = tmp_path / "app" / "code"
@@ -55,9 +58,14 @@ class _Harness:
         # app/data must exist so we can drop custom_settings.py before the run; the
         # script's own `mkdir -p` (idempotent) recreates the rest.
         self.data.mkdir(parents=True)
-        # A plain regular file at the pruned path. Ownership is irrelevant - the
-        # prune is path-based - so a test-user-owned file exercises the exclusion.
-        (self.data / "custom_settings.py").write_text("SECRET = 1\n", encoding="utf-8")
+        # A plain regular file at the pruned path drives the find/prune branch;
+        # omitting it drives the recursive else branch (the no-override case).
+        # Ownership is irrelevant - the prune is path-based - so a test-user-owned
+        # file exercises the exclusion.
+        if with_custom_settings:
+            (self.data / "custom_settings.py").write_text(
+                "SECRET = 1\n", encoding="utf-8"
+            )
 
         # manage.py is invoked as `python3 <abs>/manage.py <cmd>`, so it is real
         # Python (a #!/bin/bash stub would be parsed as Python). It is argv-aware:
@@ -102,8 +110,12 @@ class _Harness:
     def run(self, fail_createsuperuser=False):
         env = dict(os.environ)
         env["PATH"] = f"{self.bin}{os.pathsep}{env['PATH']}"
+        # Set the toggle explicitly both ways so an inherited FAIL_CREATESUPERUSER
+        # from the caller's shell cannot flip a success run into a failure one.
         if fail_createsuperuser:
             env["FAIL_CREATESUPERUSER"] = "1"
+        else:
+            env.pop("FAIL_CREATESUPERUSER", None)
         result = subprocess.run(
             ["bash", str(self.script)],
             env=env,
@@ -180,3 +192,16 @@ def test_custom_settings_excluded_from_ownership_normalization(tmp_path):
     # ...but custom_settings.py was never handed to chown, so its owner (the trust
     # signal the settings gate reads) survives every restart.
     assert custom not in lines
+
+
+def test_ownership_normalization_recurses_without_custom_settings(tmp_path):
+    # No override file present: start.sh takes the common branch and chowns the
+    # whole data volume recursively in one call. Exercising this else arm guards
+    # the branch the find/prune test bypasses.
+    harness = _Harness(tmp_path, with_custom_settings=False)
+    harness.run()
+    lines = harness.chown_lines()
+    # The data dir is handed to `chown -R` as a single target...
+    assert str(harness.data) in lines
+    # ...not the find/prune branch, which would instead list children one per line.
+    assert str(harness.data / "media") not in lines
