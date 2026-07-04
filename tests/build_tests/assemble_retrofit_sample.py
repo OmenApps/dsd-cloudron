@@ -56,6 +56,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "smoke.urls"
@@ -116,10 +117,14 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "smoke.settings")
 application = get_wsgi_application()
 """
 
+# Pins meet or exceed the deployer's own _REQUIREMENT_FLOORS (gunicorn>=22.0 is
+# the CVE-2024-1135 fix; psycopg>=3.1.12 is Django 6.0's enforced minimum), so
+# this build cell can't ship weaker dependencies than a real retrofit deploy.
+# test_requirements_meet_deployer_floors guards against future drift.
 _REQUIREMENTS = """\
 Django>=4.2
-gunicorn>=21
-psycopg[binary]>=3.1
+gunicorn>=22.0
+psycopg[binary]>=3.1.12
 django-redis>=5.4
 """
 
