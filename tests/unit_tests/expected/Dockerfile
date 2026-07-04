@@ -10,6 +10,11 @@ WORKDIR /app/code
 
 RUN python3 -m venv $VENV_PATH
 
+# No apt step for Postgres: the pinned cloudron/base already ships libpq
+# (libpq.so.5 plus pg_config/headers) and a compiler, so psycopg installs and
+# runs whether the project pins psycopg[binary] or a non-binary psycopg. A base
+# bump that dropped these would break non-binary psycopg - the CI base-digest
+# drift check is the signal to re-verify.
 COPY requirements.txt /app/code/requirements.txt
 RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip uv && \
     uv pip install --python $VENV_PATH/bin/python -r /app/code/requirements.txt
