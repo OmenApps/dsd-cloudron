@@ -50,10 +50,16 @@ docker run -d --name "$PG" --network "$NET" \
 docker run -d --name "$REDIS" --network "$NET" redis:7 >/dev/null
 
 echo "==> Waiting for Postgres to accept connections"
+PG_READY=""
 for _ in $(seq 1 30); do
-    if docker exec "$PG" pg_isready -U smoke >/dev/null 2>&1; then break; fi
+    if docker exec "$PG" pg_isready -U smoke >/dev/null 2>&1; then PG_READY=1; break; fi
     sleep 1
 done
+if [ -z "$PG_READY" ]; then
+    echo "==> Postgres never became ready; dumping its logs" >&2
+    docker logs "$PG" >&2 || true
+    exit 1
+fi
 
 echo "==> Building image from $CONTEXT_DIR"
 docker build -t "$IMAGE" "$CONTEXT_DIR"
@@ -108,7 +114,7 @@ fi
 echo "==> Polling http://127.0.0.1:${HOST_PORT}${HEALTH_PATH} (Host: ${APP_DOMAIN}) for a 2xx"
 CODE=000
 for _ in $(seq 1 60); do
-    CODE="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HOST_PORT}${HEALTH_PATH}" || echo 000)"
+    CODE="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HOST_PORT}${HEALTH_PATH}")" || CODE=000
     case "$CODE" in
         2*) echo "==> Health check passed with HTTP $CODE"; exit 0 ;;
     esac
