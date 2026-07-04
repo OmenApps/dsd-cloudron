@@ -8,11 +8,6 @@ ENV PATH=$VENV_PATH/bin:$PATH
 RUN mkdir -p /app/code /app/pkg
 WORKDIR /app/code
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends libpq-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 RUN python3 -m venv $VENV_PATH
 
 COPY pyproject.toml /app/code/pyproject.toml
