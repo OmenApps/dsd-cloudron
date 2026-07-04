@@ -80,20 +80,26 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
 
     _custom_settings = "/app/data/custom_settings.py"
     try:
-        _st = os.lstat(_custom_settings)
+        _fd = os.open(_custom_settings, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        _fd = None
     except OSError:
-        _st = None
-    if _st is not None:
-        _is_symlink = (_st.st_mode & 0o170000) == 0o120000
-        if _st.st_uid == 0 and not _is_symlink and not (_st.st_mode & 0o022):
+        _fd = None
+        import sys as _sys
+        print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)
+    if _fd is not None:
+        _code = None
+        _st = os.fstat(_fd)
+        if _st.st_uid == 0 and (_st.st_mode & 0o170000) == 0o100000 and not (_st.st_mode & 0o022):
             try:
-                with open(_custom_settings, encoding="utf-8") as _f:
+                with os.fdopen(_fd, encoding="utf-8") as _f:
                     _code = _f.read()
             except OSError as _exc:
                 import sys as _sys
                 print(f"custom_settings.py present but unreadable ({_exc}); skipping", file=_sys.stderr)
-            else:
-                exec(_code)
         else:
+            os.close(_fd)
             import sys as _sys
             print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)
+        if _code is not None:
+            exec(_code)

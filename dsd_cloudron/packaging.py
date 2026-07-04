@@ -391,30 +391,42 @@ def render_cloudron_settings(config):
     # group/other-writable. The app runs as `cloudron`, which cannot chown a file
     # to root, so an attacker-dropped file (e.g. via a media-upload path traversal
     # into /app/data) stays cloudron-owned and is skipped; an operator file created
-    # as root via `cloudron exec` runs. lstat (not stat) so a cloudron-owned symlink
-    # to a root file does not pass. exec sits OUTSIDE the read try: a SyntaxError in
-    # a trusted root-owned override should propagate, not be swallowed. start.sh
-    # excludes this file from its recursive chown so the ownership signal survives.
+    # as root via `cloudron exec` runs. Open once with O_NOFOLLOW (fails on a
+    # final-component symlink) and O_NONBLOCK, then fstat/read that same fd, so the
+    # inode checked is the inode read - no lstat-then-open TOCTOU window an attacker
+    # could swap through. O_NONBLOCK and the S_IFREG (regular-file) check matter
+    # because the open precedes the ownership check: a cloudron-owned FIFO dropped at
+    # this path would otherwise block a read-only open forever and hang startup; with
+    # O_NONBLOCK the open returns at once and the non-regular file is then skipped.
+    # exec sits OUTSIDE the read try: a SyntaxError in a trusted
+    # root-owned override should propagate, not be swallowed. start.sh excludes this
+    # file from its recursive chown so the ownership signal survives.
     blocks.append(
         '    _custom_settings = "/app/data/custom_settings.py"\n'
         "    try:\n"
-        "        _st = os.lstat(_custom_settings)\n"
+        "        _fd = os.open(_custom_settings, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)\n"
+        "    except FileNotFoundError:\n"
+        "        _fd = None\n"
         "    except OSError:\n"
-        "        _st = None\n"
-        "    if _st is not None:\n"
-        "        _is_symlink = (_st.st_mode & 0o170000) == 0o120000\n"
-        "        if _st.st_uid == 0 and not _is_symlink and not (_st.st_mode & 0o022):\n"
+        "        _fd = None\n"
+        "        import sys as _sys\n"
+        '        print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)\n'
+        "    if _fd is not None:\n"
+        "        _code = None\n"
+        "        _st = os.fstat(_fd)\n"
+        "        if _st.st_uid == 0 and (_st.st_mode & 0o170000) == 0o100000 and not (_st.st_mode & 0o022):\n"
         "            try:\n"
-        '                with open(_custom_settings, encoding="utf-8") as _f:\n'
+        '                with os.fdopen(_fd, encoding="utf-8") as _f:\n'
         "                    _code = _f.read()\n"
         "            except OSError as _exc:\n"
         "                import sys as _sys\n"
         '                print(f"custom_settings.py present but unreadable ({_exc}); skipping", file=_sys.stderr)\n'
-        "            else:\n"
-        "                exec(_code)\n"
         "        else:\n"
+        "            os.close(_fd)\n"
         "            import sys as _sys\n"
         '            print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)\n'
+        "        if _code is not None:\n"
+        "            exec(_code)\n"
     )
 
     return "\n".join(blocks)

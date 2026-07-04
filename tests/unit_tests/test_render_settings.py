@@ -154,90 +154,149 @@ def test_settings_pins_secure_headers():
 
 
 def test_settings_custom_override_gate():
-    # The override is exec'd only when the file is root-owned, not a symlink, and
-    # not group/other-writable, so an attacker-dropped, cloudron-owned file is
-    # skipped. Assert the gate's shape on the rendered text; the real ownership
-    # behavior needs a real /app/data and multiple uids, so it is a server check.
+    # The override is exec'd only when the file is root-owned and not
+    # group/other-writable. Assert the gate's shape on the rendered text; the real
+    # ownership behavior needs a real /app/data and multiple uids, so it is a
+    # server check.
     text = _settings()
     assert '_custom_settings = "/app/data/custom_settings.py"' in text
-    # lstat, not stat: a cloudron-owned symlink to a root file must not pass.
-    assert "os.lstat(_custom_settings)" in text
-    assert "(_st.st_mode & 0o170000) == 0o120000" in text  # reject symlinks
+    # Single-fd read: open with O_NOFOLLOW (fails on a symlink at the final
+    # component) and O_NONBLOCK (so a cloudron-owned FIFO at this path cannot block
+    # the read-only open, which precedes the ownership check), then fstat and read
+    # that same fd, so no lstat-then-open TOCTOU window an attacker could swap through.
+    assert (
+        "os.open(_custom_settings, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)" in text
+    )
+    assert "os.fstat(_fd)" in text
     assert "_st.st_uid == 0" in text
+    assert "(_st.st_mode & 0o170000) == 0o100000" in text  # only a regular file
     assert "not (_st.st_mode & 0o022)" in text  # reject group/other-writable
-    # A missing or mispermissioned file cannot brick startup, and a rejected but
-    # present file logs a skip line to stderr so an operator can diagnose it.
-    assert "except OSError" in text
+    # The old lstat-then-open shape is gone.
+    assert "os.lstat(_custom_settings)" not in text
+    # A missing file skips silently; a symlink or other open failure logs a skip
+    # line to stderr so an operator can diagnose it.
+    assert "except FileNotFoundError" in text
     assert "file=_sys.stderr" in text
-    # exec runs OUTSIDE the read try (in its else): a SyntaxError in a trusted,
-    # root-owned override must propagate, not be swallowed. And there is only one.
+    # exec runs OUTSIDE the read try: a SyntaxError in a trusted, root-owned
+    # override must propagate, not be swallowed. And there is only one.
     assert text.count("exec(") == 1
     assert "exec(_code)" in text
-    # Pin the structural placement: exec must come AFTER the read-try's handler,
-    # so moving it inside the try (which would swallow an OSError from the override)
-    # is caught here.
-    assert text.index("exec(_code)") > text.index("except OSError as _exc:")
+    assert text.index("exec(_code)") > text.index("with os.fdopen(_fd")
     # The old unconditional read+exec is gone.
     assert "exec(_f.read())" not in text
 
 
 def test_settings_custom_override_gate_behavior(monkeypatch):
     # The gate hardcodes /app/data/custom_settings.py, which does not exist here,
-    # so drive the generated code's logic offline: fake os.lstat's ownership/mode
-    # for that path and redirect open() to a marker file, then exec the settings
-    # and check whether the override applied. This proves the branch behavior
-    # (root-owned applies; cloudron-owned / symlink / group-writable / unreadable
-    # skipped) without a real /app/data or multiple uids.
+    # so drive the generated code's logic offline: fake os.open/os.fstat/os.fdopen
+    # for a sentinel fd, then exec the settings and check whether the override
+    # applied. This proves the branch behavior (root-owned applies; cloudron-owned
+    # / symlink / group-writable / unreadable / missing skipped) without a real
+    # /app/data, multiple uids, or root.
+    import errno
     import io
     import os
-    import builtins
 
     for key, value in _BASE_CLOUDRON_ENV.items():
         monkeypatch.setenv(key, value)
 
     path = "/app/data/custom_settings.py"
     code = "MARKER_APPLIED = True\n"
+    fake_fd = 987
 
     class FakeStat:
         def __init__(self, st_uid, st_mode):
             self.st_uid = st_uid
             self.st_mode = st_mode
 
-    def run(st_uid, st_mode, readable=True):
-        real_lstat = os.lstat
+    def run(st_uid, st_mode, *, symlink=False, missing=False, readable=True):
+        real_open = os.open
 
-        def fake_lstat(p):
+        def fake_open(p, flags, *a, **k):
             if p == path:
+                assert flags & os.O_NOFOLLOW  # the gate must refuse to follow a symlink
+                assert flags & os.O_NONBLOCK  # ...and must not block on a FIFO
+                if missing:
+                    raise FileNotFoundError(path)
+                if symlink:
+                    raise OSError(errno.ELOOP, "symlink")
+                return fake_fd
+            return real_open(p, flags, *a, **k)
+
+        real_fstat = os.fstat
+
+        def fake_fstat(fd):
+            if fd == fake_fd:
                 return FakeStat(st_uid, st_mode)
-            return real_lstat(p)
+            return real_fstat(fd)
 
-        real_open = builtins.open
+        real_fdopen = os.fdopen
 
-        def fake_open(p, *a, **k):
-            if p == path:
+        def fake_fdopen(fd, *a, **k):
+            if fd == fake_fd:
                 if not readable:
-                    raise PermissionError("simulated unreadable file")
+                    raise OSError("simulated unreadable file")
                 return io.StringIO(code)
-            return real_open(p, *a, **k)
+            return real_fdopen(fd, *a, **k)
 
-        monkeypatch.setattr(os, "lstat", fake_lstat)
-        monkeypatch.setattr(builtins, "open", fake_open)
+        real_close = os.close
+
+        def fake_close(fd):
+            if fd == fake_fd:
+                return None
+            return real_close(fd)
+
+        monkeypatch.setattr(os, "open", fake_open)
+        monkeypatch.setattr(os, "fstat", fake_fstat)
+        monkeypatch.setattr(os, "fdopen", fake_fdopen)
+        monkeypatch.setattr(os, "close", fake_close)
         namespace = {}
         exec(compile(_settings(), "<cloudron_settings>", "exec"), namespace)
         return "MARKER_APPLIED" in namespace
 
     reg = 0o100000  # S_IFREG
-    lnk = 0o120000  # S_IFLNK
+    fifo = 0o010000  # S_IFIFO
     # root-owned, regular, 0640 -> applies.
     assert run(0, reg | 0o640) is True
     # cloudron-owned -> skipped.
     assert run(1000, reg | 0o640) is False
-    # root-owned symlink -> skipped (lstat sees the link, not its target).
-    assert run(0, lnk | 0o777) is False
+    # a symlink at the final component -> O_NOFOLLOW open fails -> skipped.
+    assert run(0, reg | 0o640, symlink=True) is False
     # root-owned but group-writable -> skipped.
     assert run(0, reg | 0o660) is False
-    # root-owned but unreadable by the app user -> skipped, no crash.
+    # a root-owned FIFO -> not a regular file -> skipped (and O_NONBLOCK kept the
+    # open from hanging; the real-FIFO no-block property is pinned by the test below).
+    assert run(0, fifo | 0o640) is False
+    # absent -> skipped silently, no crash.
+    assert run(0, reg | 0o640, missing=True) is False
+    # opened but unreadable at read time -> skipped, no crash.
     assert run(0, reg | 0o600, readable=False) is False
+
+
+def test_custom_settings_gate_open_flags_do_not_block_on_fifo(tmp_path):
+    # The gate opens the override BEFORE it can fstat-and-reject it, so the open
+    # flags must not block on a non-regular file: a read-only open of a FIFO with no
+    # writer blocks forever unless O_NONBLOCK is set. Prove the exact flag set the
+    # gate renders returns at once. This is the offline proxy for the hardcoded
+    # /app/data/custom_settings.py the unit suite cannot create at that path.
+    import os
+    import signal
+
+    assert "os.O_NONBLOCK" in _settings()  # the gate renders the non-blocking open
+    fifo = tmp_path / "custom_settings.py"
+    os.mkfifo(fifo)
+
+    def _timed_out(signum, frame):
+        raise AssertionError("open blocked on a FIFO - O_NONBLOCK is missing")
+
+    previous = signal.signal(signal.SIGALRM, _timed_out)
+    signal.alarm(2)
+    try:
+        fd = os.open(str(fifo), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        os.close(fd)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def test_settings_execute_default_config(monkeypatch):
