@@ -78,6 +78,7 @@ include-package-data = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "skip_auto_dsd_call: provided by django-simple-deploy's integration-test harness",
 ]
