@@ -62,9 +62,10 @@ def test_root_path_served_for_health_check(tmp_path):
 
 
 def test_requirements_meet_deployer_floors(tmp_path):
-    """The fixture's pins must not fall below the deployer's own security/compat
-    floors, so this build cell cannot ship weaker dependencies than a real
-    retrofit deploy - and the two cannot silently drift apart."""
+    """Every deployer floor this lean sample actually ships must be met, and a
+    floor package cannot silently drop out of the sample unverified. celery and
+    django-allauth are exempt: the lean retrofit sample enables neither feature,
+    so it legitimately ships no pin for them to check."""
     from dsd_cloudron.platform_deployer import _REQUIREMENT_FLOORS, _bare_name
 
     assemble_retrofit_sample(tmp_path)
@@ -75,6 +76,16 @@ def test_requirements_meet_deployer_floors(tmp_path):
             continue
         pinned[_bare_name(line)] = line.split(">=", 1)[1].strip()
 
+    # Fail if a floor the sample is meant to honor is missing a pin entirely,
+    # otherwise its drift would go unchecked (a vacuous pass). The two
+    # feature-gated floors are the only allowed omissions.
+    feature_gated = {"celery", "django-allauth"}
+    unchecked = set(_REQUIREMENT_FLOORS) - set(pinned) - feature_gated
+    assert not unchecked, (
+        f"deployer floors for {sorted(unchecked)} have no matching pin in the "
+        "retrofit sample, so their drift goes unverified - add a pin or extend "
+        "the feature_gated exemption"
+    )
     for package, floor in _REQUIREMENT_FLOORS.items():
         if package in pinned:
             assert _at_least(pinned[package], floor.lstrip(">=")), (
