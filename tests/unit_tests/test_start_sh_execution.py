@@ -12,6 +12,7 @@ is the trust signal the settings gate reads).
 """
 
 import os
+import shlex
 import stat
 import subprocess
 
@@ -50,7 +51,6 @@ class _Harness:
     """A relocated start.sh plus the stub binaries/files it needs to run offline."""
 
     def __init__(self, tmp_path, with_custom_settings=True):
-        self.root = tmp_path
         self.data = tmp_path / "app" / "data"
         self.code = tmp_path / "app" / "code"
         self.chown_log = tmp_path / "chown.log"
@@ -116,8 +116,13 @@ class _Harness:
             env["FAIL_CREATESUPERUSER"] = "1"
         else:
             env.pop("FAIL_CREATESUPERUSER", None)
+        # Pin a permissive umask (022) before running the script, so a plain
+        # redirect leaves a 0o644 file and the explicit `chmod 600` is provably
+        # what tightens the secret/password files to 0o600. Without this, a
+        # restrictive ambient umask (077) would already yield 0o600 and mask a
+        # regression that dropped the chmod.
         result = subprocess.run(
-            ["bash", str(self.script)],
+            ["bash", "-c", f"umask 0022; exec bash {shlex.quote(str(self.script))}"],
             env=env,
             capture_output=True,
             text=True,
@@ -145,6 +150,9 @@ def test_secret_key_written_600_and_stable(tmp_path):
     assert _mode(key) == 0o600
     first = key.read_text(encoding="utf-8")
     assert first.strip()  # a non-empty token, not a zero-byte file
+    # The atomic temp+mv completed: no half-written .secret_key.tmp is left behind
+    # on the persistent volume for a later boot to trip over.
+    assert not (harness.data / ".secret_key.tmp").exists()
 
     # A second start must reuse the persisted key byte-for-byte (the -s guard), so
     # SECRET_KEY does not rotate and invalidate every session on each restart.
@@ -187,10 +195,13 @@ def test_custom_settings_excluded_from_ownership_normalization(tmp_path):
     lines = harness.chown_lines()
     custom = str(harness.data / "custom_settings.py")
     media = str(harness.data / "media")
-    # The prune branch actually ran: a normal sibling under /app/data was chowned...
+    # `media in lines` is load-bearing: the chown stub does not recurse, so a
+    # regression to a plain `chown -R /app/data` would log only the /app/data root
+    # and never the enumerated `media` child - this assertion is what proves the
+    # find/prune branch ran and not a re-chown that would sweep in custom_settings.
     assert media in lines
-    # ...but custom_settings.py was never handed to chown, so its owner (the trust
-    # signal the settings gate reads) survives every restart.
+    # custom_settings.py was never handed to chown, so its owner (the trust signal
+    # the settings gate reads) survives every restart.
     assert custom not in lines
 
 
