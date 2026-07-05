@@ -153,6 +153,24 @@ def build_context(args):
     return context
 
 
+def format_toggle_summary(context):
+    """A one-line-per-toggle summary of the resolved scaffold options.
+
+    Printed after creation so the operator can confirm the addons and app stacks
+    match intent before installing.
+    """
+    toggles = [
+        ("Redis", context["use_redis"]),
+        ("Sendmail", context["use_sendmail"]),
+        ("Celery", context["use_celery"]),
+        ("SSO", context["use_sso"]),
+    ]
+    lines = ["Resolved toggles:"]
+    for label, value in toggles:
+        lines.append(f"- {label}: {'on' if value == 'yes' else 'off'}")
+    return "\n".join(lines)
+
+
 def config_from_context(context):
     """Map cookiecutter answers onto a CloudronAppConfig."""
     return CloudronAppConfig(
@@ -318,6 +336,7 @@ def main(argv=None):
         return 0
     project_dir = scaffold(args)
     print(f"Created {project_dir}")
+    print(format_toggle_summary(build_context(args)))
     print("Next: cd into it, then `cloudron install -l <subdomain>`.")
     return 0
 

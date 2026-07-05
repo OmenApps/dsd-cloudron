@@ -153,6 +153,32 @@ def test_scaffold_existing_output_dir_fails_cleanly(monkeypatch):
         new.scaffold(args)
 
 
+def test_toggle_summary_lists_resolved_on_toggles():
+    args = new.parse_args(["new", "My Shop", "--celery", "--sso"])
+    summary = new.format_toggle_summary(new.build_context(args))
+    assert "Redis: on" in summary
+    assert "Sendmail: on" in summary
+    assert "Celery: on" in summary
+    assert "SSO: on" in summary
+
+
+def test_toggle_summary_reflects_off_toggles():
+    args = new.parse_args(["new", "My Shop", "--no-redis", "--no-sendmail"])
+    summary = new.format_toggle_summary(new.build_context(args))
+    assert "Redis: off" in summary
+    assert "Sendmail: off" in summary
+    assert "Celery: off" in summary
+    assert "SSO: off" in summary
+
+
+def test_main_prints_toggle_summary(monkeypatch, capsys):
+    monkeypatch.setattr(new, "scaffold", lambda args: "/tmp/my_shop")
+    new.main(["new", "My Shop", "--sso"])
+    out = capsys.readouterr().out
+    assert "SSO: on" in out
+    assert "Celery: off" in out
+
+
 def test_parse_reconfigure_command():
     args = new.parse_args(["reconfigure", "--memory-limit", "2147483648"])
     assert args.command == "reconfigure"
