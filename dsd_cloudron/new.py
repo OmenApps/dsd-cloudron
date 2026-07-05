@@ -5,6 +5,7 @@ then renders the deploy artifacts through the shared packaging core.
 """
 
 import argparse
+import json
 import keyword
 import re
 import sys
@@ -13,7 +14,7 @@ from pathlib import Path
 from cookiecutter.exceptions import OutputDirExistsException
 from cookiecutter.main import cookiecutter
 
-from .packaging import CloudronAppConfig, render_all
+from .packaging import CloudronAppConfig, ReconfigureError, reconfigure, render_all
 
 TEMPLATE_DIR = Path(__file__).parent / "project_template"
 
@@ -66,6 +67,31 @@ def parse_args(argv=None):
                 action="store_true",
                 help=f"Disable {dest} (default on).",
             )
+
+    # Reconfigure exposes only the two sizing overrides: it re-renders the project's
+    # current config and cannot toggle a stack (that needs dependencies and wiring it
+    # does not touch), so there are deliberately no --celery/--sso/--no-redis/--no-sendmail
+    # flags here.
+    recon = sub.add_parser(
+        "reconfigure",
+        help="Re-render Cloudron artifacts in an existing project, reviewing each change.",
+    )
+    recon.add_argument(
+        "--project-dir",
+        default=".",
+        help="The scaffolded project to reconfigure (default: current directory).",
+    )
+    recon.add_argument(
+        "--memory-limit",
+        type=int,
+        default=None,
+        help="New memory limit in bytes (default: keep current).",
+    )
+    recon.add_argument(
+        "--health-check-path",
+        default=None,
+        help="New health check path (default: keep current).",
+    )
     return parser.parse_args(argv)
 
 
@@ -144,6 +170,119 @@ def config_from_context(context):
     )
 
 
+def _detect_project_slug(project_dir):
+    """The project package is the directory holding cloudron_settings.py."""
+    matches = sorted(Path(project_dir).glob("*/cloudron_settings.py"))
+    if not matches:
+        _fail(
+            f"could not find the project package (no */cloudron_settings.py) under "
+            f"{str(project_dir)!r}; run this inside a scaffolded project."
+        )
+    return matches[0].parent.name
+
+
+def _read_project_state(project_dir):
+    """Reconstruct a CloudronAppConfig's kwargs from an already-scaffolded project.
+
+    `dsd-cloudron new` does not persist its flags, so reconfigure reads the current
+    state back out: the CloudronManifest.json for app_id/title/memoryLimit/
+    healthCheckPath and the addon set (redis/sendmail/oidc), the supervisor dir for
+    Celery, the Dockerfile for the package manager, and the retrofit
+    cloudron_adapters.py for greenfield. pkg_manager and greenfield are reconstructed,
+    not assumed, so a re-render reproduces the project faithfully even if this command
+    is (mis)run against a retrofit project rather than a greenfield one.
+    """
+    project_dir = Path(project_dir)
+    manifest_path = project_dir / "CloudronManifest.json"
+    if not manifest_path.exists():
+        _fail(
+            f"no CloudronManifest.json in {str(project_dir)!r}; run "
+            "`dsd-cloudron reconfigure` inside a project scaffolded by "
+            "`dsd-cloudron new`."
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        _fail(
+            f"{manifest_path} is not valid JSON ({exc}); fix it before reconfiguring."
+        )
+    slug = _detect_project_slug(project_dir)
+    addons = manifest.get("addons", {})
+    dockerfile_path = project_dir / "Dockerfile"
+    dockerfile = (
+        dockerfile_path.read_text(encoding="utf-8") if dockerfile_path.exists() else ""
+    )
+    return {
+        "project_name": slug,
+        "app_id": manifest.get("id", f"com.example.{slug.replace('_', '-')}"),
+        # The uv Dockerfile installs from pyproject.toml; every other manager renders
+        # the same requirements.txt block, so req_txt reproduces it byte-for-byte.
+        "pkg_manager": "uv" if "COPY pyproject.toml" in dockerfile else "req_txt",
+        "title": manifest.get("title", ""),
+        "memory_limit": manifest.get("memoryLimit", 1073741824),
+        "health_check_path": manifest.get("healthCheckPath", "/"),
+        "enable_redis": "redis" in addons,
+        "enable_sendmail": "sendmail" in addons,
+        "enable_celery": (project_dir / "supervisor" / "celery-worker.conf").exists(),
+        "enable_sso": "oidc" in addons,
+        # Only the retrofit path ships cloudron_adapters.py: its absence means the
+        # project owns its allauth wiring (greenfield), its presence means a retrofit
+        # deploy. Reconstruct that rather than assume greenfield, so a re-render keeps
+        # the right adapter pointers and readme wording.
+        "greenfield": not (project_dir / slug / "cloudron_adapters.py").exists(),
+    }
+
+
+def reconfigure_config(project_dir, args):
+    """Reconstruct the project's config, then apply the sizing overrides.
+
+    Reconfigure re-renders the current configuration; it does not toggle stacks (that
+    needs deps + wiring it never touches, and packaging.reconfigure refuses a stack
+    change). So the only overrides are --memory-limit and --health-check-path;
+    everything else is reconstructed from the project and left as-is. Constructing a
+    single CloudronAppConfig lets __post_init__ still reject a project whose on-disk
+    state is itself impossible (e.g. a celery worker with the Redis addon removed).
+    """
+    state = _read_project_state(project_dir)
+    if args.memory_limit is not None:
+        state["memory_limit"] = args.memory_limit
+    if args.health_check_path is not None:
+        state["health_check_path"] = args.health_check_path
+    try:
+        return CloudronAppConfig(**state)
+    except ValueError as exc:
+        _fail(str(exc))
+
+
+def run_reconfigure(args):
+    """Re-render an existing project's artifacts with a plain-prompt review flow."""
+    project_dir = Path(args.project_dir)
+    config = reconfigure_config(project_dir, args)
+
+    def _confirm(path):
+        answer = input(f"Overwrite {path.relative_to(project_dir)}? [y/N] ")
+        return answer.strip().lower() in ("y", "yes")
+
+    try:
+        # Defensive: greenfield reconstructs config from the same disk signals the stack
+        # guard and manifest checks read, so reconfigure's ReconfigureError paths are
+        # already pre-empted by _read_project_state (missing/corrupt manifest) and by the
+        # reconstruction itself (the stack set matches by construction). This catch only
+        # matters if the manifest changes underfoot between the two reads; keep it so that
+        # race still aborts cleanly rather than as a traceback.
+        result = reconfigure(config, project_dir, confirm=_confirm, output=print)
+    except ReconfigureError as exc:
+        _fail(str(exc))
+    if result.overwritten or result.manifest_changed:
+        print(
+            "\nReconfigure complete. Run `cloudron update --app <subdomain>` to roll "
+            "these changes out to the running app."
+        )
+    else:
+        print("\nReconfigure complete. No changes were made.")
+    return project_dir
+
+
 def scaffold(args):
     """Render the project skeleton, then the Cloudron artifact set."""
     context = build_context(args)
@@ -173,9 +312,10 @@ def scaffold(args):
 
 
 def main(argv=None):
-    # argparse requires the "new" subcommand (the only one), so it exits before
-    # parse_args returns if it is missing; args.command is always "new" here.
     args = parse_args(argv)
+    if args.command == "reconfigure":
+        run_reconfigure(args)
+        return 0
     project_dir = scaffold(args)
     print(f"Created {project_dir}")
     print("Next: cd into it, then `cloudron install -l <subdomain>`.")

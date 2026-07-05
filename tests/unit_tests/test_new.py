@@ -151,3 +151,110 @@ def test_scaffold_existing_output_dir_fails_cleanly(monkeypatch):
     args = new.parse_args(["new", "My Shop", "--output-dir", "/tmp"])
     with pytest.raises(SystemExit):
         new.scaffold(args)
+
+
+def test_parse_reconfigure_command():
+    args = new.parse_args(["reconfigure", "--memory-limit", "2147483648"])
+    assert args.command == "reconfigure"
+    assert args.memory_limit == 2147483648
+    assert args.project_dir == "."
+
+
+def test_reconfigure_subcommand_has_no_stack_flags():
+    # Reconfigure re-renders the current config and adjusts sizing only; it never
+    # toggles a stack, so the stack flags must not exist on this subparser.
+    with pytest.raises(SystemExit):
+        new.parse_args(["reconfigure", "--celery"])
+
+
+def test_read_project_state_reconstructs_from_project(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            enable_sso=True,
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+    state = new._read_project_state(tmp_path)
+    assert state["project_name"] == "shop"
+    assert state["app_id"] == "com.example.shop"
+    assert state["pkg_manager"] == "uv"  # reconstructed from the Dockerfile
+    assert state["greenfield"] is True  # greenfield SSO ships no cloudron_adapters.py
+    assert state["enable_sso"] is True  # oidc addon present in the manifest
+    assert state["enable_redis"] is True
+    assert state["enable_celery"] is False  # no supervisor/celery-worker.conf
+
+
+def test_read_project_state_marks_a_retrofit_sso_project_not_greenfield(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    # A retrofit SSO deploy ships cloudron_adapters.py; reconstruction must read that
+    # as greenfield=False so a re-render keeps the retrofit adapter pointers and the
+    # req_txt Dockerfile instead of flipping to greenfield/uv.
+    render_all(
+        CloudronAppConfig(
+            project_name="shop", app_id="com.example.shop", enable_sso=True
+        ),
+        tmp_path,
+    )
+    state = new._read_project_state(tmp_path)
+    assert state["greenfield"] is False
+    assert state["pkg_manager"] == "req_txt"
+    assert (tmp_path / "shop" / "cloudron_adapters.py").exists()
+
+
+def test_reconfigure_config_applies_sizing_overrides(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+    args = new.parse_args(
+        [
+            "reconfigure",
+            "--project-dir",
+            str(tmp_path),
+            "--memory-limit",
+            "2147483648",
+        ]
+    )
+    config = new.reconfigure_config(tmp_path, args)
+    assert config.memory_limit == 2147483648
+    assert config.enable_redis is True  # kept from the project
+    assert config.enable_celery is False  # kept from the project
+
+
+def test_reconfigure_config_missing_manifest_fails_cleanly(tmp_path):
+    args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        new.reconfigure_config(tmp_path, args)
+
+
+def test_run_reconfigure_overwrites_changed_file_on_yes(tmp_path, monkeypatch):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+    (tmp_path / "Dockerfile").write_text("HAND EDIT\n", encoding="utf-8")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
+    new.run_reconfigure(args)
+    assert "HAND EDIT" not in (tmp_path / "Dockerfile").read_text(encoding="utf-8")
