@@ -414,6 +414,21 @@ def test_read_project_state_rejects_a_non_utf8_manifest(tmp_path):
         new._read_project_state(tmp_path)
 
 
+def test_read_project_state_rejects_wrong_shape_addons(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    # A valid-JSON manifest with addons set to null must abort cleanly rather than
+    # raise a raw TypeError from the `"redis" in addons` reconstruction.
+    render_all(
+        CloudronAppConfig(project_name="shop", app_id="com.example.shop"), tmp_path
+    )
+    (tmp_path / "CloudronManifest.json").write_text(
+        '{"addons": null}', encoding="utf-8"
+    )
+    with pytest.raises(SystemExit):
+        new._read_project_state(tmp_path)
+
+
 def test_read_project_state_missing_package_dir_fails_cleanly(tmp_path):
     from dsd_cloudron.packaging import CloudronAppConfig, render_all
 

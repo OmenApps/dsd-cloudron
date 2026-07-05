@@ -245,7 +245,10 @@ class PlatformDeployer:
             self.config.health_check_path = deployed.get(
                 "healthCheckPath", self.config.health_check_path
             )
-        except (OSError, ValueError):
+        except (OSError, ValueError, AttributeError):
+            # AttributeError covers a valid-JSON-but-wrong-shape manifest (a top-level
+            # array has no .get); let it fall through so packaging.reconfigure's own
+            # guard reports it as a clean ReconfigureError instead of a raw traceback.
             pass
 
         def _confirm(path):
@@ -262,7 +265,7 @@ class PlatformDeployer:
         except OSError as error:
             raise DSDCommandError(platform_msgs.partial_write_failed(error)) from error
 
-        if result.overwritten or result.manifest_changed:
+        if result.changed:
             plugin_utils.write_output(platform_msgs.reconfigure_update_reminder)
         else:
             plugin_utils.write_output("\nReconfigure complete. No changes were made.\n")

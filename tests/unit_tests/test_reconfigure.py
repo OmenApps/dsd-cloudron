@@ -101,6 +101,48 @@ def test_reconfigure_rejects_a_non_utf8_artifact(tmp_path):
         reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
 
 
+def test_reconfigure_rejects_a_wrong_shape_manifest(tmp_path):
+    # Valid JSON but the wrong shape (addons is null, not an object) would make the
+    # `"redis" in addons` stack-guard checks raise a raw TypeError; it must abort as a
+    # clean ReconfigureError before any prompt or write, like the malformed-JSON case.
+    render_all(_config(), tmp_path)
+    (tmp_path / "CloudronManifest.json").write_text(
+        '{"addons": null}', encoding="utf-8"
+    )
+    rec = _Recorder()
+    with pytest.raises(ReconfigureError):
+        reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
+    assert rec.prompted == []
+
+
+def test_reconfigure_rejects_a_top_level_array_manifest(tmp_path):
+    # A top-level JSON array parses fine but has no .get; the guard must reject it
+    # cleanly rather than raising a raw AttributeError.
+    render_all(_config(), tmp_path)
+    (tmp_path / "CloudronManifest.json").write_text("[]", encoding="utf-8")
+    rec = _Recorder()
+    with pytest.raises(ReconfigureError):
+        reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
+    assert rec.prompted == []
+
+
+def test_apply_manifest_values_rejects_a_non_dict_manifest(tmp_path):
+    # apply_manifest_values re-reads the manifest independently of the stack guard, so
+    # it guards the shape itself rather than trusting a well-formed input.
+    manifest_path = tmp_path / "CloudronManifest.json"
+    manifest_path.write_text("[]", encoding="utf-8")
+    with pytest.raises(ReconfigureError):
+        apply_manifest_values(_config(), manifest_path)
+
+
+def test_reconfigure_result_changed_reflects_overwrites_and_manifest():
+    from dsd_cloudron.packaging import ReconfigureResult
+
+    assert ReconfigureResult([], [], [], False).changed is False
+    assert ReconfigureResult(["x"], [], [], False).changed is True
+    assert ReconfigureResult([], [], [], True).changed is True
+
+
 def test_unchanged_artifacts_are_not_prompted_or_written(tmp_path):
     render_all(_config(), tmp_path)
     rec = _Recorder()

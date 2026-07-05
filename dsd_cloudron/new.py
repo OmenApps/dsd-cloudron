@@ -240,6 +240,12 @@ def _read_project_state(project_dir):
         _fail(f"{manifest_path} is not a JSON object; fix it before reconfiguring.")
     slug = _detect_project_slug(project_dir)
     addons = manifest.get("addons", {})
+    # A valid-JSON manifest with addons set to null (or any non-object) would make the
+    # `"redis" in addons` checks below raise a raw TypeError; keep it a clean abort.
+    if not isinstance(addons, dict):
+        _fail(
+            f'{manifest_path} "addons" is not a JSON object; fix it before reconfiguring.'
+        )
     dockerfile_path = project_dir / "Dockerfile"
     # The Dockerfile is only sniffed for an ASCII marker, so decode leniently: a
     # non-UTF-8 Dockerfile must not crash the reconstruction the way the manifest read
@@ -319,7 +325,7 @@ def run_reconfigure(args):
         result = reconfigure(config, project_dir, confirm=_confirm, output=print)
     except ReconfigureError as exc:
         _fail(str(exc))
-    if result.overwritten or result.manifest_changed:
+    if result.changed:
         print(
             "\nReconfigure complete. Run `cloudron update --app <subdomain>` to roll "
             "these changes out to the running app."

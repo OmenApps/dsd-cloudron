@@ -153,3 +153,35 @@ def test_deploy_reconfigure_preserves_tuned_manifest_sizing(monkeypatch, tmp_pat
     assert "# dsd-cloudron settings." not in settings.read_text(encoding="utf-8")
     assert added == []
     assert "No changes were made" in dsd_config.stdout.getvalue()
+
+
+def test_deploy_reconfigure_aborts_on_a_wrong_shape_manifest(monkeypatch, tmp_path):
+    # A valid-JSON-but-wrong-shape manifest (top-level array) must abort as a clean
+    # DSDCommandError, not a raw AttributeError from the sizing read-back or the guard.
+    import json
+
+    import pytest
+
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    pkg = tmp_path / "blog"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    settings = pkg / "settings.py"
+    settings.write_text("SECRET_KEY = 'x'\n", encoding="utf-8")
+    render_all(
+        CloudronAppConfig(project_name="blog", app_id="com.example.blog"), tmp_path
+    )
+    (tmp_path / "CloudronManifest.json").write_text("[]", encoding="utf-8")
+
+    dsd_config.unit_testing = True
+    dsd_config.local_project_name = "blog"
+    dsd_config.deployed_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    dsd_config.project_root = tmp_path
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = False
+    plugin_config.reconfigure = True
+
+    with pytest.raises(pd.DSDCommandError):
+        PlatformDeployer().deploy()

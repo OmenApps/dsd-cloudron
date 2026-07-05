@@ -239,7 +239,20 @@ def apply_manifest_values(config, manifest_path):
     survives. Returns True when a scalar actually changed and the file was rewritten.
     """
     manifest_path = Path(manifest_path)
-    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    # Reconfigure's stack guard already parsed this file, but this is a fresh read
+    # (the file could change between the two), so guard it the same way rather than
+    # assuming well-formed input - a bad shape here would corrupt the write below.
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ReconfigureError(
+            f"{manifest_path.name} could not be read as UTF-8 JSON ({error}); fix it "
+            "before reconfiguring."
+        ) from error
+    if not isinstance(data, dict):
+        raise ReconfigureError(
+            f"{manifest_path.name} is not a JSON object; fix it before reconfiguring."
+        )
 
     # Compare the parsed values, not the serialized text: an operator who reformatted
     # the manifest (different indentation, key order, trailing newline) but left the
@@ -548,6 +561,14 @@ class ReconfigureResult:
     declined: list  # paths with a diff the operator rejected
     manifest_changed: bool
 
+    @property
+    def changed(self):
+        """True when reconfigure wrote something worth rolling out - an artifact
+        overwrite or a manifest scalar sync. Both entry points key their "run cloudron
+        update" reminder on this, so the predicate lives here rather than being restated.
+        """
+        return bool(self.overwritten or self.manifest_changed)
+
 
 class ReconfigureError(Exception):
     """Reconfigure cannot proceed: the project is not deployed, or the resolved
@@ -582,7 +603,18 @@ def _stack_flags_from_disk(target_dir):
             f"{_MANIFEST_NAME} could not be read as UTF-8 JSON ({error}); fix it "
             "before reconfiguring."
         ) from error
+    # A syntactically valid manifest of the wrong shape (a top-level array, or addons
+    # set to null) would otherwise slip past the decode guard and raise a raw
+    # AttributeError/TypeError; keep it a clean abort like the malformed-JSON case.
+    if not isinstance(data, dict):
+        raise ReconfigureError(
+            f"{_MANIFEST_NAME} is not a JSON object; fix it before reconfiguring."
+        )
     addons = data.get("addons", {})
+    if not isinstance(addons, dict):
+        raise ReconfigureError(
+            f'{_MANIFEST_NAME} "addons" is not a JSON object; fix it before reconfiguring.'
+        )
     return {
         "enable_redis": "redis" in addons,
         "enable_sendmail": "sendmail" in addons,
