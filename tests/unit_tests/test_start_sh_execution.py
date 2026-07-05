@@ -77,6 +77,8 @@ class _Harness:
             'command = sys.argv[1] if len(sys.argv) > 1 else ""\n'
             'if command == "createsuperuser" and os.environ.get("FAIL_CREATESUPERUSER"):\n'
             "    sys.exit(1)\n"
+            'if command == "migrate" and os.environ.get("FAIL_MIGRATE"):\n'
+            "    sys.exit(1)\n"
             "sys.exit(0)\n",
             encoding="utf-8",
         )
@@ -107,29 +109,31 @@ class _Harness:
         path.write_text(contents, encoding="utf-8")
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-    def run(self, fail_createsuperuser=False):
+    def run(self, fail_createsuperuser=False, fail_migrate=False, expect_success=True):
         env = dict(os.environ)
         env["PATH"] = f"{self.bin}{os.pathsep}{env['PATH']}"
-        # Set the toggle explicitly both ways so an inherited FAIL_CREATESUPERUSER
-        # from the caller's shell cannot flip a success run into a failure one.
+        # Set both toggles explicitly so an inherited value from the caller's shell
+        # cannot flip a success run into a failure one.
         if fail_createsuperuser:
             env["FAIL_CREATESUPERUSER"] = "1"
         else:
             env.pop("FAIL_CREATESUPERUSER", None)
-        # Pin a permissive umask (022) before running the script, so a plain
-        # redirect leaves a 0o644 file and the explicit `chmod 600` is provably
-        # what tightens the secret/password files to 0o600. Without this, a
-        # restrictive ambient umask (077) would already yield 0o600 and mask a
-        # regression that dropped the chmod.
+        if fail_migrate:
+            env["FAIL_MIGRATE"] = "1"
+        else:
+            env.pop("FAIL_MIGRATE", None)
+        # Pin a permissive umask (022) before running the script, so a plain redirect
+        # leaves a 0o644 file and the explicit `chmod 600` is provably what tightens the
+        # secret/password files to 0o600. Without this, a restrictive ambient umask (077)
+        # would already yield 0o600 and mask a regression that dropped the chmod.
         result = subprocess.run(
             ["bash", "-c", f"umask 0022; exec bash {shlex.quote(str(self.script))}"],
             env=env,
             capture_output=True,
             text=True,
         )
-        # The script always finishes cleanly: a createsuperuser failure is caught by
-        # its own if/else, so returncode 0 is expected either way.
-        assert result.returncode == 0, result.stderr
+        if expect_success:
+            assert result.returncode == 0, result.stderr
         return result
 
     def chown_lines(self):
@@ -216,3 +220,12 @@ def test_ownership_normalization_recurses_without_custom_settings(tmp_path):
     assert str(harness.data) in lines
     # ...not the find/prune branch, which would instead list children one per line.
     assert str(harness.data / "media") not in lines
+
+
+def test_migrate_failure_emits_marker_and_aborts(tmp_path):
+    harness = _Harness(tmp_path)
+    result = harness.run(fail_migrate=True, expect_success=False)
+    assert result.returncode != 0
+    assert "MIGRATE_FAILED" in result.stderr
+    # start.sh aborts at migrate, before the first-run admin bootstrap.
+    assert not (harness.data / ".initialized").exists()

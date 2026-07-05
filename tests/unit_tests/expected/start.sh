@@ -44,7 +44,13 @@ echo "==> Collecting static files into ${RUN}/static"
 gosu cloudron:cloudron python3 "${CODE}/manage.py" collectstatic --noinput
 
 echo "==> Applying database migrations"
-gosu cloudron:cloudron python3 "${CODE}/manage.py" migrate --noinput
+# Wrap migrate so a failure prints a distinct, greppable marker to stderr before the
+# boot aborts. Under `set -e` a bare failing command aborts silently; the `if !`
+# lets us emit the marker and then exit non-zero ourselves.
+if ! gosu cloudron:cloudron python3 "${CODE}/manage.py" migrate --noinput; then
+    echo "==> MIGRATE_FAILED" >&2
+    exit 1
+fi
 
 # Once the app is initialized, drop the one-time admin password file so the
 # bootstrap secret's lifetime is bounded to roughly one restart cycle instead of

@@ -40,6 +40,13 @@ def test_collectstatic_and_migrate_every_start():
     assert "migrate --noinput" in text
 
 
+def test_migrate_failure_emits_marker():
+    text = _start()
+    # A failed migrate prints a greppable marker to stderr and aborts the boot.
+    assert "==> MIGRATE_FAILED" in text
+    assert "migrate --noinput" in text
+
+
 def test_first_run_superuser_behind_initialized_marker():
     text = _start()
     assert "/app/data/.initialized" in text
