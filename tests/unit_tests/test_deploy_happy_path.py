@@ -155,6 +155,55 @@ def test_deploy_reconfigure_preserves_tuned_manifest_sizing(monkeypatch, tmp_pat
     assert "No changes were made" in dsd_config.stdout.getvalue()
 
 
+def test_deploy_reconfigure_preserves_wagtail_block(monkeypatch, tmp_path):
+    # A wagtail-deployed project reconfigured WITHOUT --wagtail must not have its
+    # Wagtail settings block stripped. enable_wagtail has no manifest addon or
+    # supervisor program to read it back from, so _reconfigure reconstructs it from
+    # the deployed cloudron_settings.py before the re-render. The confirm stub auto-
+    # answers yes under unit testing, so a regression that dropped the reconstruction
+    # would strip the block and fail this test rather than pass for the wrong reason.
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    pkg = tmp_path / "blog"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    settings = pkg / "settings.py"
+    settings.write_text("SECRET_KEY = 'x'\n", encoding="utf-8")
+    render_all(
+        CloudronAppConfig(
+            project_name="blog", app_id="com.example.blog", enable_wagtail=True
+        ),
+        tmp_path,
+    )
+
+    dsd_config.unit_testing = True
+    dsd_config.local_project_name = "blog"
+    dsd_config.deployed_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    dsd_config.project_root = tmp_path
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = False
+    plugin_config.reconfigure = True
+    plugin_config.enable_wagtail = False  # a reconfigure that forgot the flag
+
+    added = []
+    monkeypatch.setattr(
+        pd.plugin_utils, "add_package", lambda name, version="": added.append(name)
+    )
+
+    PlatformDeployer().deploy()
+
+    cloudron_settings = (pkg / "cloudron_settings.py").read_text(encoding="utf-8")
+    assert "WAGTAILADMIN_BASE_URL" in cloudron_settings  # block preserved
+    # Discriminate the reconfigure branch from a fall-through to a full deploy: the
+    # settings import was never appended and no requirement was added.
+    assert "# dsd-cloudron settings." not in settings.read_text(encoding="utf-8")
+    assert added == []
+    # The re-render matched what was on disk (the flag was reconstructed), so the
+    # "no changes" branch fires rather than the update reminder.
+    assert "No changes were made" in dsd_config.stdout.getvalue()
+
+
 def test_deploy_reconfigure_aborts_on_a_wrong_shape_manifest(monkeypatch, tmp_path):
     # A valid-JSON-but-wrong-shape manifest (top-level array) must abort as a clean
     # DSDCommandError, not a raw AttributeError from the sizing read-back or the guard.

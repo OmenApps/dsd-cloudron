@@ -157,6 +157,24 @@ class PlatformDeployer:
 
     def _build_config(self):
         app_id = plugin_config.app_id or f"com.example.{dsd_config.local_project_name}"
+        # The container must load the settings module core actually appended the
+        # Cloudron import to (dsd_config.settings_path). For a flat settings.py that
+        # is <project>.settings, but for a split-settings Wagtail project core writes
+        # to settings/production.py while wsgi/manage.py default to settings/dev - so
+        # the module must be pinned in start.sh or every container process (gunicorn,
+        # migrate, celery) loads the ungated dev settings. Derive the dotted module
+        # from the path core chose; fall back to empty (the <project>.settings default,
+        # which pins nothing) if it is missing or somehow outside the project root.
+        settings_module = ""
+        if dsd_config.settings_path is not None:
+            try:
+                settings_module = ".".join(
+                    dsd_config.settings_path.relative_to(dsd_config.project_root)
+                    .with_suffix("")
+                    .parts
+                )
+            except ValueError:
+                settings_module = ""
         # CloudronAppConfig validates project_name/pkg_manager/celery+redis in
         # __post_init__ and raises ValueError. Translate that into a clean
         # DSDCommandError so a bad project (e.g. a non-identifier package name)
@@ -173,8 +191,10 @@ class PlatformDeployer:
                 enable_celery=plugin_config.enable_celery,
                 enable_sendmail=plugin_config.enable_sendmail,
                 enable_sso=plugin_config.enable_sso,
+                enable_wagtail=plugin_config.enable_wagtail,
                 memory_limit=plugin_config.memory_limit,
                 health_check_path=plugin_config.health_check_path,
+                settings_module=settings_module,
             )
         except ValueError as error:
             raise DSDCommandError(str(error)) from error
@@ -249,6 +269,23 @@ class PlatformDeployer:
             # AttributeError covers a valid-JSON-but-wrong-shape manifest (a top-level
             # array has no .get); let it fall through so packaging.reconfigure's own
             # guard reports it as a clean ReconfigureError instead of a raw traceback.
+            pass
+
+        # enable_wagtail is not reflected in the manifest addons or a supervisor
+        # program, so reconstruct it from the deployed cloudron_settings.py. Without
+        # this, a reconfigure that omitted --wagtail would re-render the settings
+        # without the Wagtail block and offer to strip it from a working deploy. This
+        # only ever sets the flag True (it never clears a passed --wagtail); turning
+        # Wagtail off is a re-deploy, matching the one-way spirit of the stack guard.
+        cloudron_settings_path = (
+            Path(root) / self.config.project_name / "cloudron_settings.py"
+        )
+        try:
+            if "WAGTAILADMIN_BASE_URL" in cloudron_settings_path.read_text(
+                encoding="utf-8"
+            ):
+                self.config.enable_wagtail = True
+        except (OSError, ValueError):
             pass
 
         def _confirm(path):

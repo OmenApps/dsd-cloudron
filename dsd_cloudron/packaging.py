@@ -46,6 +46,7 @@ class CloudronAppConfig:
     enable_celery: bool = False
     enable_sendmail: bool = True
     enable_sso: bool = False
+    enable_wagtail: bool = False
     memory_limit: int = 1073741824
     http_port: int = 8000
     health_check_path: str = "/"
@@ -57,6 +58,12 @@ class CloudronAppConfig:
     # rewrite an existing project's INSTALLED_APPS/urls), which flips the readme's
     # SSO section to "allauth is not auto-wired" instead of claiming it is.
     greenfield: bool = False
+    # The dotted settings module the CONTAINER must load. Empty means the
+    # <project>.settings default (a flat settings.py). The retrofit deployer sets it
+    # to the module django-simple-deploy actually appended the Cloudron import to:
+    # for a split-settings Wagtail project that is <project>.settings.production, not
+    # the <project>.settings.dev that wsgi/manage.py/celery default to.
+    settings_module: str = ""
 
     def __post_init__(self):
         # project_name is spliced into generated Python (STATIC_ROOT) and into
@@ -117,6 +124,22 @@ def _context(config):
     bool: the standalone Engine localizes non-string ints/floats through global
     settings during rendering, which raises offline, but bools are safe.
     """
+    # Pin DJANGO_SETTINGS_MODULE in the container only when it differs from the
+    # <project>.settings default. A split-settings (Wagtail) project has the Cloudron
+    # gate appended to settings/production.py while wsgi/manage.py/celery default to
+    # settings/dev, so every container process would otherwise load the ungated dev
+    # settings; pinning the module core wrote to fixes gunicorn, the migrate and
+    # collectstatic calls, and celery at once. The flat-settings case emits nothing,
+    # so start.sh stays byte-for-byte identical there.
+    effective_settings_module = (
+        config.settings_module or f"{config.project_name}.settings"
+    )
+    if effective_settings_module == f"{config.project_name}.settings":
+        settings_module_export = ""
+    else:
+        settings_module_export = (
+            f'export DJANGO_SETTINGS_MODULE="{effective_settings_module}"\n\n'
+        )
     return {
         "project_name": config.project_name,
         "http_port": str(config.http_port),
@@ -125,6 +148,10 @@ def _context(config):
         # template and would flip the readme's SSO branch to the wired claim.
         "greenfield": config.greenfield,
         "enable_sso": config.enable_sso,
+        "enable_wagtail": config.enable_wagtail,
+        # Either an `export DJANGO_SETTINGS_MODULE=...` line (with a trailing blank
+        # line) for a split-settings project, or "" for the flat-settings default.
+        "settings_module_export": settings_module_export,
     }
 
 
@@ -413,6 +440,17 @@ def render_cloudron_settings(config):
             "    EMAIL_USE_SSL = False\n"
             '    DEFAULT_FROM_EMAIL = os.environ.get("CLOUDRON_MAIL_FROM", "")\n'
             "    SERVER_EMAIL = DEFAULT_FROM_EMAIL\n"
+        )
+
+    if config.enable_wagtail:
+        blocks.append(
+            '    WAGTAILADMIN_BASE_URL = os.environ["CLOUDRON_APP_ORIGIN"]\n'
+            "    # Force the database search backend on Cloudron. If the project\n"
+            "    # configured Elasticsearch or OpenSearch (not available here without\n"
+            "    # that addon), this keeps search working on Postgres full-text.\n"
+            "    WAGTAILSEARCH_BACKENDS = {\n"
+            '        "default": {"BACKEND": "wagtail.search.backends.database"},\n'
+            "    }\n"
         )
 
     if config.enable_sso:
