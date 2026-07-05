@@ -27,3 +27,15 @@ def test_wagtail_settings_block_absent_by_default():
 def test_context_exposes_enable_wagtail():
     assert packaging._context(_cfg(enable_wagtail=True))["enable_wagtail"] is True
     assert packaging._context(_cfg())["enable_wagtail"] is False
+
+
+def test_wagtail_and_celery_coexist():
+    # The plan requires --wagtail --celery to work together. At the settings level
+    # both blocks must render: the Wagtail glue and the Celery broker. (The container
+    # pin that makes the celery worker load the same gated settings module - so it
+    # reaches the broker - is exercised by the start.sh render tests.)
+    out = packaging.render_cloudron_settings(
+        _cfg(enable_wagtail=True, enable_celery=True, enable_redis=True)
+    )
+    assert 'WAGTAILADMIN_BASE_URL = os.environ["CLOUDRON_APP_ORIGIN"]' in out
+    assert 'CELERY_BROKER_URL = os.environ["CLOUDRON_REDIS_URL"]' in out

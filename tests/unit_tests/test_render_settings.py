@@ -34,21 +34,25 @@ _BASE_CLOUDRON_ENV = {
 # Every VALID toggle combination must assemble to syntactically valid Python.
 # Celery-without-Redis is rejected by CloudronAppConfig, so it is filtered out
 # (the condition `redis or not celery`). This exercises the indentation-sensitive
-# sso and celery blocks under all permitted combinations, not just the default.
+# sso, celery, and wagtail blocks under all permitted combinations, not just the
+# default.
 _VALID_COMBOS = [
-    (redis, celery, sendmail, sso)
-    for redis, celery, sendmail, sso in itertools.product([False, True], repeat=4)
+    (redis, celery, sendmail, sso, wagtail)
+    for redis, celery, sendmail, sso, wagtail in itertools.product(
+        [False, True], repeat=5
+    )
     if redis or not celery
 ]
 
 
-@pytest.mark.parametrize("redis,celery,sendmail,sso", _VALID_COMBOS)
-def test_settings_is_valid_python(redis, celery, sendmail, sso):
+@pytest.mark.parametrize("redis,celery,sendmail,sso,wagtail", _VALID_COMBOS)
+def test_settings_is_valid_python(redis, celery, sendmail, sso, wagtail):
     text = _settings(
         enable_redis=redis,
         enable_celery=celery,
         enable_sendmail=sendmail,
         enable_sso=sso,
+        enable_wagtail=wagtail,
     )
     ast.parse(text)  # raises SyntaxError if the generated module is broken
 
@@ -385,6 +389,26 @@ def test_settings_execute_full_config(monkeypatch):
     assert (
         app["settings"]["server_url"]
         == "https://login.example.com/.well-known/openid-configuration"
+    )
+
+
+def test_settings_execute_wagtail_config(monkeypatch):
+    # Execute the wagtail conditional block so a syntax error, a wrong structure, or
+    # a block that escaped the ON_CLOUDRON gate surfaces here rather than shipping
+    # green - the substring checks in test_wagtail_settings.py never exec the module.
+    for key, value in _BASE_CLOUDRON_ENV.items():
+        monkeypatch.setenv(key, value)
+
+    namespace = {}
+    exec(
+        compile(_settings(enable_wagtail=True), "<cloudron_settings>", "exec"),
+        namespace,
+    )
+
+    assert namespace["WAGTAILADMIN_BASE_URL"] == "https://blog.example.com"
+    assert (
+        namespace["WAGTAILSEARCH_BACKENDS"]["default"]["BACKEND"]
+        == "wagtail.search.backends.database"
     )
 
 
