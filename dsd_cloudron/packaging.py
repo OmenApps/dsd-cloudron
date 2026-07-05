@@ -5,6 +5,7 @@ functions: no network, no `cloudron` CLI, no django-simple-deploy core. Both the
 retrofit deployer and the greenfield scaffolder call render_all().
 """
 
+import difflib
 import json
 import stat
 from dataclasses import dataclass
@@ -225,6 +226,30 @@ def render_readme(config):
 def render_dockerignore(config):
     """Render the .dockerignore (static text; config reserved for future use)."""
     return _render_template("dockerignore", _context(config))
+
+
+def apply_manifest_values(config, manifest_path):
+    """Sync the two flag-controlled scalar values into an existing CloudronManifest.json.
+
+    Reconfigure changes only memoryLimit and healthCheckPath and writes the file
+    back. The addon set is left exactly as it is on disk: reconfigure's stack guard
+    has already proven the config declares the same addons, so there is nothing to
+    change and, crucially, no addon can be silently dropped by a mismatched flag.
+    Every other top-level key (title, author, id, checklist, addons, httpPort, ...)
+    survives. Returns True if the file's contents changed.
+    """
+    manifest_path = Path(manifest_path)
+    original = manifest_path.read_text(encoding="utf-8")
+    data = json.loads(original)
+
+    data["memoryLimit"] = config.memory_limit
+    data["healthCheckPath"] = config.health_check_path
+
+    updated = json.dumps(data, indent=2) + "\n"
+    if updated == original:
+        return False
+    manifest_path.write_text(updated, encoding="utf-8")
+    return True
 
 
 def render_manifest(config):
@@ -469,49 +494,171 @@ def render_cloudron_adapters(config):
     return _render_template("cloudron_adapters", _context(config))
 
 
-def render_all(config, target_dir, force=False):
-    """Write the full Cloudron artifact set into target_dir.
+def _planned_artifacts(config, target_dir):
+    """Yield (path, contents, executable) for every file render_all writes.
 
-    Not transactional: files are written one at a time, so an I/O failure
-    partway through can leave target_dir partially rendered. Callers (the
-    deployer, the scaffolder) own recovery; the returned RenderResult lists
-    exactly what was written and what was skipped.
+    One enumeration of the artifact set, so render_all (skip/force) and reconfigure
+    (diff-and-confirm) cannot drift on which files exist. The manifest is yielded
+    first; reconfigure handles it surgically rather than by diff.
     """
     target_dir = Path(target_dir)
     pkg_dir = target_dir / config.project_name
     supervisor_dir = target_dir / "supervisor"
-    result = RenderResult(written=[], skipped=[])
 
-    _write(target_dir / "CloudronManifest.json", render_manifest(config), result, force)
-    _write(target_dir / "Dockerfile", render_dockerfile(config), result, force)
-    _write(
-        target_dir / "start.sh",
-        render_start_sh(config),
-        result,
-        force,
-        executable=True,
-    )
-    _write(target_dir / "nginx.conf", render_nginx_conf(config), result, force)
-    _write(target_dir / ".dockerignore", render_dockerignore(config), result, force)
-    _write(target_dir / "README-cloudron.md", render_readme(config), result, force)
-    _write(
-        pkg_dir / "cloudron_settings.py",
-        render_cloudron_settings(config),
-        result,
-        force,
-    )
+    yield target_dir / "CloudronManifest.json", render_manifest(config), False
+    yield target_dir / "Dockerfile", render_dockerfile(config), False
+    yield target_dir / "start.sh", render_start_sh(config), True
+    yield target_dir / "nginx.conf", render_nginx_conf(config), False
+    yield target_dir / ".dockerignore", render_dockerignore(config), False
+    yield target_dir / "README-cloudron.md", render_readme(config), False
+    yield pkg_dir / "cloudron_settings.py", render_cloudron_settings(config), False
+    # Gate on the property render_all uses, not a re-inlined expression, so the
+    # single "does this deploy ship the retrofit adapters" signal cannot drift.
     if config.ships_retrofit_adapters:
-        _write(
-            pkg_dir / "cloudron_adapters.py",
-            render_cloudron_adapters(config),
-            result,
-            force,
-        )
-    # celery.py belongs to the project package and only exists when Celery is on;
-    # the worker/beat supervisor confs below import it.
+        yield pkg_dir / "cloudron_adapters.py", render_cloudron_adapters(config), False
     if config.enable_celery:
-        _write(pkg_dir / "celery.py", render_celery_app(config), result, force)
+        yield pkg_dir / "celery.py", render_celery_app(config), False
     for name, contents in render_supervisor_confs(config).items():
-        _write(supervisor_dir / name, contents, result, force)
+        yield supervisor_dir / name, contents, False
 
+
+def render_all(config, target_dir, force=False):
+    """Write the full Cloudron artifact set into target_dir.
+
+    Not transactional: files are written one at a time, so an I/O failure partway
+    through can leave target_dir partially rendered. Callers (the deployer, the
+    scaffolder) own recovery; the returned RenderResult lists exactly what was
+    written and what was skipped.
+    """
+    result = RenderResult(written=[], skipped=[])
+    for path, contents, executable in _planned_artifacts(config, target_dir):
+        _write(path, contents, result, force, executable=executable)
+    return result
+
+
+@dataclass
+class ReconfigureResult:
+    overwritten: list  # paths whose diff the operator accepted
+    unchanged: list  # paths identical on disk (never prompted)
+    declined: list  # paths with a diff the operator rejected
+    manifest_changed: bool
+
+
+class ReconfigureError(Exception):
+    """Reconfigure cannot proceed: the project is not deployed, or the resolved
+    config would change which stacks are enabled. Callers translate this into their
+    own clean abort (a DSDCommandError for retrofit, a _fail for greenfield)."""
+
+
+_MANIFEST_NAME = "CloudronManifest.json"
+
+# The stack flags reconfigure must not change: each needs dependencies, app wiring,
+# or supervisor programs reconfigure never touches. redis/sendmail/sso are visible
+# in the manifest addons; celery is visible as its supervisor program.
+_STACK_FLAGS = ("enable_redis", "enable_sendmail", "enable_sso", "enable_celery")
+
+
+def _stack_flags_from_disk(target_dir):
+    """Reconstruct the enabled-stack flags a deployed project already declares.
+
+    redis/sendmail/sso are read back from the manifest addons; celery from the
+    presence of its supervisor program. This is the deployed truth reconfigure
+    compares the resolved config against, so a re-render can never quietly turn a
+    stack on (deps absent) or off (a stale supervisor conf the platform still runs).
+    """
+    target_dir = Path(target_dir)
+    try:
+        data = json.loads((target_dir / _MANIFEST_NAME).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ReconfigureError(
+            f"{_MANIFEST_NAME} is not valid JSON ({error}); fix it before reconfiguring."
+        ) from error
+    addons = data.get("addons", {})
+    return {
+        "enable_redis": "redis" in addons,
+        "enable_sendmail": "sendmail" in addons,
+        "enable_sso": "oidc" in addons,
+        "enable_celery": (target_dir / "supervisor" / "celery-worker.conf").exists(),
+    }
+
+
+def _unified_diff(before, after, label):
+    """A unified diff between two artifact texts, labeled for the operator."""
+    lines = difflib.unified_diff(
+        before.splitlines(keepends=True),
+        after.splitlines(keepends=True),
+        fromfile=f"{label} (current)",
+        tofile=f"{label} (new)",
+    )
+    return "".join(lines)
+
+
+def reconfigure(config, target_dir, confirm, output):
+    """Re-render the deployed artifact set with a review-before-overwrite policy.
+
+    Preconditions (raise ReconfigureError, never write): the project must already be
+    deployed (its manifest exists), and the resolved config must declare the same
+    stacks the deployed project does. Reconfigure renders artifacts but never installs
+    dependencies, wires the celery __init__, or adds/removes supervisor programs, so
+    it cannot enable or disable a stack; it refuses rather than ship a broken image.
+
+    For every artifact except the manifest, compute a unified diff between the on-disk
+    file and the freshly rendered content:
+      - identical -> reported as "no change", never prompted, never written;
+      - different (or missing) -> the diff is emitted via output(), then confirm(path)
+        decides whether to overwrite.
+    An unreviewed file is never touched. The manifest is never diffed: its two
+    flag-controlled scalars (memoryLimit, healthCheckPath) are synced with
+    apply_manifest_values after the loop.
+
+    confirm(path) -> bool: ask the operator whether to overwrite `path` (the diff has
+      already been emitted via output). The retrofit path passes core's
+      get_confirmation; the greenfield path passes a plain input() prompt.
+    output(message): emit a progress or diff line.
+    """
+    target_dir = Path(target_dir)
+    manifest_path = target_dir / _MANIFEST_NAME
+    if not manifest_path.exists():
+        raise ReconfigureError(
+            f"no {_MANIFEST_NAME} in {target_dir}: reconfigure re-renders an "
+            "already-deployed project. Run a normal deploy first."
+        )
+    on_disk = _stack_flags_from_disk(target_dir)
+    changed = [name for name in _STACK_FLAGS if getattr(config, name) != on_disk[name]]
+    if changed:
+        stacks = ", ".join(name[len("enable_") :] for name in changed)
+        raise ReconfigureError(
+            f"reconfigure cannot change which stacks are enabled ({stacks}); it does "
+            "not install dependencies or wire apps. Re-run a full deploy (retrofit) "
+            "or re-scaffold (greenfield) to change a stack."
+        )
+
+    result = ReconfigureResult(
+        overwritten=[], unchanged=[], declined=[], manifest_changed=False
+    )
+    for path, contents, executable in _planned_artifacts(config, target_dir):
+        if path.name == _MANIFEST_NAME:
+            continue  # synced surgically after the loop, never diffed
+        current = path.read_text(encoding="utf-8") if path.exists() else ""
+        rel = path.relative_to(target_dir)
+        if current == contents:
+            result.unchanged.append(path)
+            output(f"  No change: {rel}")
+            continue
+        output(_unified_diff(current, contents, rel))
+        if confirm(path):
+            # The diff-and-confirm already ran, so this is an unconditional write; a
+            # throwaway RenderResult keeps _write's signature satisfied.
+            _write(
+                path, contents, RenderResult([], []), force=True, executable=executable
+            )
+            result.overwritten.append(path)
+            output(f"  Overwrote {rel}")
+        else:
+            result.declined.append(path)
+            output(f"  Left unchanged: {rel}")
+
+    result.manifest_changed = apply_manifest_values(config, manifest_path)
+    rel = manifest_path.relative_to(target_dir)
+    output(f"  Updated {rel}" if result.manifest_changed else f"  No change: {rel}")
     return result
