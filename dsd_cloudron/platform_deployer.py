@@ -1,5 +1,6 @@
 """Cloudron-specific retrofit deployment, modeled on dsd-flyio."""
 
+import json
 import re
 from pathlib import Path
 
@@ -73,6 +74,9 @@ class PlatformDeployer:
         self._validate_platform()
         self.config = self._build_config()
         self._check_health_check_path()
+        if plugin_config.reconfigure:
+            self._reconfigure()
+            return
         # render_all is not transactional and _add_celery_app/_modify_settings
         # edit files in place, so a filesystem error mid-write would otherwise
         # surface as a raw traceback with the project left partially modified.
@@ -92,6 +96,14 @@ class PlatformDeployer:
     def _validate_platform(self):
         if dsd_config.unit_testing:
             self.deployed_project_name = dsd_config.deployed_project_name
+            return
+        # Reconfigure is a purely local re-render: no cloudron CLI, no settings.py
+        # edit, so it skips the CLI/auth checks and the settings-block prompt. It
+        # still needs deployed_project_name for its messages.
+        if plugin_config.reconfigure:
+            self.deployed_project_name = (
+                plugin_config.location or dsd_config.deployed_project_name
+            )
             return
         cloudron_cli.check_installed()
         cloudron_cli.check_authenticated()
@@ -199,6 +211,57 @@ class PlatformDeployer:
                 f"  Skipped existing {path.relative_to(root)} "
                 "(use --force-overwrite to regenerate)"
             )
+
+    def _reconfigure(self):
+        # Re-render with the per-file diff-and-confirm policy and the manifest-scalar
+        # sync. This deliberately does not run _modify_settings, _add_requirements, or
+        # _add_celery_app: reconfigure re-renders the plugin's own artifacts only and
+        # never rewrites the user's settings.py. packaging.reconfigure refuses (with
+        # ReconfigureError) when the project is not deployed, the manifest is corrupt, or
+        # the flags would change a stack; translate that, like an I/O failure, into a
+        # clean abort.
+        plugin_utils.write_output(
+            "\nReconfiguring Cloudron artifacts. Review each change before it is written."
+        )
+        root = dsd_config.project_root
+        # Preserve the deployed sizing. The retrofit CLI's --memory-limit/--health-check-path
+        # default to concrete values (1 GB, "/"), so syncing them from a reconfigure that did
+        # not restate them would silently revert a manifest the operator tuned. Read the two
+        # scalars back from the deployed manifest into the config so the sync preserves them;
+        # on a retrofit project, change sizing by editing CloudronManifest.json (the control
+        # surface) or re-deploying. The read is defensive: a missing or corrupt manifest is
+        # reported cleanly by packaging.reconfigure's own precondition/guard below.
+        try:
+            deployed = json.loads(
+                (Path(root) / "CloudronManifest.json").read_text(encoding="utf-8")
+            )
+            self.config.memory_limit = deployed.get(
+                "memoryLimit", self.config.memory_limit
+            )
+            self.config.health_check_path = deployed.get(
+                "healthCheckPath", self.config.health_check_path
+            )
+        except (OSError, ValueError):
+            pass
+
+        def _confirm(path):
+            return plugin_utils.get_confirmation(
+                platform_msgs.reconfigure_overwrite_prompt(path.relative_to(root))
+            )
+
+        try:
+            result = packaging.reconfigure(
+                self.config, root, confirm=_confirm, output=plugin_utils.write_output
+            )
+        except packaging.ReconfigureError as error:
+            raise DSDCommandError(str(error)) from error
+        except OSError as error:
+            raise DSDCommandError(platform_msgs.partial_write_failed(error)) from error
+
+        if result.overwritten or result.manifest_changed:
+            plugin_utils.write_output(platform_msgs.reconfigure_update_reminder)
+        else:
+            plugin_utils.write_output("\nReconfigure complete. No changes were made.\n")
 
     def _add_celery_app(self):
         # render_all wrote <project>/celery.py; here we load it from the package

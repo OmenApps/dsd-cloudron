@@ -28,6 +28,7 @@ class PluginConfig:
         self.enable_sso = False
         self.server = ""
         self.allow_selfsigned = False
+        self.reconfigure = False
 
 
 plugin_config = PluginConfig()

@@ -23,6 +23,7 @@ def _options(**overrides):
         "no_sendmail": False,
         "celery": False,
         "sso": False,
+        "reconfigure": False,
     }
     base.update(overrides)
     return base
@@ -72,6 +73,16 @@ def test_validate_cli_sets_app_intrusive_flags():
     assert plugin_config.enable_sso is True
 
 
+def test_validate_cli_maps_reconfigure_flag():
+    cli.validate_cli(_options(reconfigure=True))
+    assert plugin_config.reconfigure is True
+
+
+def test_validate_cli_reconfigure_defaults_false():
+    cli.validate_cli(_options())
+    assert plugin_config.reconfigure is False
+
+
 def test_validate_cli_rejects_celery_without_redis():
     with pytest.raises(DSDCommandError):
         cli.validate_cli(_options(celery=True, no_redis=True))
@@ -116,7 +127,14 @@ def test_parser_registration_adds_flags():
     parser = argparse.ArgumentParser()
     cli.PluginCLI(parser)
     text = parser.format_help()
-    for flag in ["--location", "--no-redis", "--celery", "--sso", "--force-overwrite"]:
+    for flag in [
+        "--location",
+        "--no-redis",
+        "--celery",
+        "--sso",
+        "--force-overwrite",
+        "--reconfigure",
+    ]:
         assert flag in text
     # The API token is intentionally not a CLI flag (it would be logged to
     # dsd_logs and shell history); auth comes from the `cloudron login` session.

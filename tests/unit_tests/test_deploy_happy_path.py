@@ -59,3 +59,77 @@ def test_deploy_composes_end_to_end(monkeypatch, tmp_path):
         "supervisor/celery-worker.conf",
     ):
         assert (tmp_path / relative).exists(), f"missing {relative}"
+
+
+def test_deploy_reconfigure_reruns_artifacts_and_skips_settings(monkeypatch, tmp_path):
+    # An already-configured project: pre-render the artifact set, then hand-edit one
+    # file so the fresh render differs. deploy() with --reconfigure must restore it
+    # (get_confirmation auto-yes under unit testing) while touching neither settings.py
+    # nor the requirements.
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    pkg = tmp_path / "blog"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    settings = pkg / "settings.py"
+    settings.write_text("SECRET_KEY = 'x'\n", encoding="utf-8")
+    render_all(
+        CloudronAppConfig(project_name="blog", app_id="com.example.blog"), tmp_path
+    )
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("HAND EDIT\n", encoding="utf-8")
+
+    dsd_config.unit_testing = True
+    dsd_config.local_project_name = "blog"
+    dsd_config.deployed_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    dsd_config.project_root = tmp_path
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = False
+    plugin_config.reconfigure = True
+
+    added = []
+    monkeypatch.setattr(
+        pd.plugin_utils, "add_package", lambda name, version="": added.append(name)
+    )
+
+    PlatformDeployer().deploy()
+
+    assert "HAND EDIT" not in dockerfile.read_text(encoding="utf-8")  # restored
+    assert "# dsd-cloudron settings." not in settings.read_text(encoding="utf-8")
+    assert added == []
+
+
+def test_deploy_reconfigure_preserves_tuned_manifest_sizing(monkeypatch, tmp_path):
+    # An operator who tuned memoryLimit and runs --reconfigure without restating
+    # --memory-limit must not have it reverted to the 1 GB CLI default. The retrofit
+    # path reads the two scalars back from the deployed manifest before the sync.
+    import json
+
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    pkg = tmp_path / "blog"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    settings = pkg / "settings.py"
+    settings.write_text("SECRET_KEY = 'x'\n", encoding="utf-8")
+    render_all(
+        CloudronAppConfig(project_name="blog", app_id="com.example.blog"), tmp_path
+    )
+    manifest = tmp_path / "CloudronManifest.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["memoryLimit"] = 2147483648  # operator-tuned, above the 1 GB default
+    manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    dsd_config.unit_testing = True
+    dsd_config.local_project_name = "blog"
+    dsd_config.deployed_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    dsd_config.project_root = tmp_path
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = False
+    plugin_config.reconfigure = True  # memory_limit left at the 1 GB CLI default
+
+    PlatformDeployer().deploy()
+
+    assert json.loads(manifest.read_text(encoding="utf-8"))["memoryLimit"] == 2147483648

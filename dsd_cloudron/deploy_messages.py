@@ -84,6 +84,21 @@ def partial_write_failed(error):
     )
 
 
+def reconfigure_overwrite_prompt(rel):
+    """Per-file prompt for the retrofit reconfigure flow.
+
+    The diff for `rel` has already been printed; this asks whether to replace the
+    on-disk file with the freshly rendered version.
+    """
+    return f"Overwrite {rel} with the freshly rendered version?"
+
+
+reconfigure_update_reminder = (
+    "\nReconfigure complete. Run `cloudron update --app <subdomain>` to build and "
+    "roll these changes out to the running app.\n"
+)
+
+
 def uv_requirements_exported(req_path):
     """Status note when a uv project's lock is materialized for core.
 

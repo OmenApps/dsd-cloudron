@@ -69,6 +69,17 @@ class PluginCLI:
             ),
         )
         group.add_argument(
+            "--reconfigure",
+            action="store_true",
+            help=(
+                "Re-render the Cloudron artifacts against an already-configured "
+                "project, showing a diff and asking before overwriting each file. "
+                "Pass the same toggles you deployed with; reconfigure cannot change "
+                "which stacks are enabled, and it preserves the manifest's memoryLimit "
+                "and healthCheckPath (change those in CloudronManifest.json or re-deploy)."
+            ),
+        )
+        group.add_argument(
             "--server",
             type=str,
             default="",
@@ -112,6 +123,7 @@ def validate_cli(options):
     plugin_config.force_overwrite = options["force_overwrite"]
     plugin_config.server = options["server"]
     plugin_config.allow_selfsigned = options["allow_selfsigned"]
+    plugin_config.reconfigure = options["reconfigure"]
 
     plugin_config.enable_redis = not options["no_redis"]
     plugin_config.enable_sendmail = not options["no_sendmail"]
