@@ -25,6 +25,39 @@ rather than your application code, re-run `manage.py deploy` first to
 regenerate them (add `--force-overwrite` to replace files that already
 exist), then `cloudron update` to rebuild.
 
+## Reconfigure after the first deploy
+
+The generated files are the control surface, but re-running the deploy is blunt:
+rendered artifacts are skip-if-present by default, and `--force-overwrite` clobbers
+every artifact including ones you hand-edited. Reconfigure is the reviewable middle
+ground for re-rendering the artifacts of the configuration you already deployed - to
+pick up an improved template or restore a file you hand-edited by mistake - and for
+adjusting the manifest's sizing.
+
+- Retrofit: `python manage.py deploy --reconfigure` (pass the same toggles you
+  deployed with, for example `--sso`, so the re-render matches).
+- Greenfield: `dsd-cloudron reconfigure` inside the project (add `--memory-limit` or
+  `--health-check-path` to change a manifest value).
+
+For each artifact it would write, reconfigure shows a diff against the file on disk
+and asks before overwriting; an unchanged file is skipped without a prompt, and a
+file you decline is left exactly as it is. In the manifest it touches only `memoryLimit`
+and `healthCheckPath`, and it preserves whatever is deployed unless you change it:
+greenfield takes a new value from `--memory-limit`/`--health-check-path`, while the
+retrofit path always preserves the deployed sizing (change it by editing
+`CloudronManifest.json` - the control surface - or re-deploying). Every other key, the
+addon set, and any hand edit in `CloudronManifest.json` are preserved. Reconfigure never
+edits your `settings.py`.
+
+Reconfigure does not change *which stacks are enabled*. It re-renders artifacts but
+never installs dependencies, wires apps, or adds and removes supervisor programs, so
+enabling or disabling Celery, SSO, Redis, or sendmail through it would ship a broken
+image (a dependency is missing) or a crash-looping one (a stale supervisor program the
+platform still runs). If the toggles you pass (retrofit) or the project on disk
+(greenfield) declare a different stack set than what is deployed, reconfigure refuses
+and names the mismatch. To change a stack, re-run a full `deploy` (retrofit) or
+re-scaffold with `dsd-cloudron new` (greenfield). Follow any change with `cloudron update`.
+
 ## What persists across updates
 
 `/app/data` is the one writable, backed-up volume in the container; every
