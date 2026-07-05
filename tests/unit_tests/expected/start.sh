@@ -45,8 +45,9 @@ gosu cloudron:cloudron python3 "${CODE}/manage.py" collectstatic --noinput
 
 echo "==> Applying database migrations"
 # Wrap migrate so a failure prints a distinct, greppable marker to stderr before the
-# boot aborts. Under `set -e` a bare failing command aborts silently; the `if !`
-# lets us emit the marker and then exit non-zero ourselves.
+# boot aborts. Under `set -e` a bare failing command aborts with only Django's own
+# traceback and no distinct marker; the `if !` (exempt from set -e) lets us emit the
+# marker and then exit non-zero ourselves.
 if ! gosu cloudron:cloudron python3 "${CODE}/manage.py" migrate --noinput; then
     echo "==> MIGRATE_FAILED" >&2
     exit 1

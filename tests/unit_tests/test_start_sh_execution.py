@@ -6,9 +6,10 @@ under `set -eu` as root. So there is nothing to "template": the harness rewrites
 the rendered TEXT to relocate those roots under a tmp sandbox, stubs manage.py
 and the gosu/chown binaries, and runs `bash start.sh`. That lets us assert the
 things a substring check cannot: the secret-key temp+mv and chmod 600, key
-idempotency, admin-password retry-safety and auto-delete, and that start.sh's
-recursive chown deliberately excludes /app/data/custom_settings.py (whose owner
-is the trust signal the settings gate reads).
+idempotency, admin-password retry-safety and auto-delete, that a failed migrate
+emits the MIGRATE_FAILED marker and aborts before the first-run bootstrap, and that
+start.sh's recursive chown deliberately excludes /app/data/custom_settings.py (whose
+owner is the trust signal the settings gate reads).
 """
 
 import os
@@ -226,6 +227,6 @@ def test_migrate_failure_emits_marker_and_aborts(tmp_path):
     harness = _Harness(tmp_path)
     result = harness.run(fail_migrate=True, expect_success=False)
     assert result.returncode != 0
-    assert "MIGRATE_FAILED" in result.stderr
+    assert "==> MIGRATE_FAILED" in result.stderr
     # start.sh aborts at migrate, before the first-run admin bootstrap.
     assert not (harness.data / ".initialized").exists()

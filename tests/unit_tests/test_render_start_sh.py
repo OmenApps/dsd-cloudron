@@ -42,9 +42,13 @@ def test_collectstatic_and_migrate_every_start():
 
 def test_migrate_failure_emits_marker():
     text = _start()
-    # A failed migrate prints a greppable marker to stderr and aborts the boot.
+    # The marker is emitted from inside the migrate guard, so it must sit after the
+    # migrate call and before the one-time admin bootstrap (the .initialized block); a
+    # positional check catches a marker accidentally moved out of that guard, which a
+    # bare presence check would not.
     assert "==> MIGRATE_FAILED" in text
-    assert "migrate --noinput" in text
+    assert text.index("migrate --noinput") < text.index("==> MIGRATE_FAILED")
+    assert text.index("==> MIGRATE_FAILED") < text.index("/app/data/.initialized")
 
 
 def test_first_run_superuser_behind_initialized_marker():

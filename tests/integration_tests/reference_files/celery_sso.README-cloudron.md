@@ -62,11 +62,14 @@ cloudron logs --app <subdomain> -f  # tail logs
 `/app/data` and the Postgres/Redis addons persist across updates. `migrate` runs
 on every start, so new migrations apply automatically.
 
-`cloudron update` snapshots the app to a backup before it builds the new image, so
-a failed migration has a clear undo: restore that backup from the Cloudron dashboard
-(or `cloudron restore`). Passing `--no-backup` skips the snapshot and removes that
-easy undo. If a migration fails on boot, `start.sh` prints `==> MIGRATE_FAILED` to
-the logs and exits non-zero, so `cloudron logs` can be grepped for that marker.
+`cloudron update` snapshots the app to a backup before it applies the update, so a
+failed migration has a clear undo: restore that backup from the Cloudron dashboard
+(or `cloudron restore`) promptly, before it ages out of the retention window. Passing
+`--no-backup` skips the snapshot and removes that undo. If a migration exits with an
+error on boot, `start.sh` prints `==> MIGRATE_FAILED` to the logs and exits non-zero,
+so `cloudron logs` can be grepped for that marker. A migration that instead hangs (say,
+blocked on a lock) won't print it - there the last log line before the restart is
+`==> Applying database migrations`.
 
 ## First sign-in
 
