@@ -236,6 +236,60 @@ def followup_notes(config):
             "    # urls.py - add include to your django.urls import, then to urlpatterns:\n"
             '    path("accounts/", include("allauth.urls")),'
         )
+    if config.enable_wagtail:
+        notes.append(
+            "- Wagtail: cloudron_settings.py sets WAGTAILADMIN_BASE_URL from "
+            "CLOUDRON_APP_ORIGIN and forces Wagtail search onto the database backend "
+            "(Postgres full-text), which overrides an Elasticsearch or OpenSearch "
+            "backend that Cloudron does not provide. That database backend needs "
+            "django.contrib.postgres in your INSTALLED_APPS; the plugin does not edit "
+            "your settings.py, so add it yourself. If your site already has content, "
+            "run `python manage.py update_index` once after the first deploy so search "
+            "results are populated. Uploaded images and documents and their cached "
+            "renditions write to /app/data/media, so they persist and are backed up "
+            'across updates. The health check stays "/": a stock Wagtail site serves '
+            "its home page (a 200) there, so no health view is needed by default. Sign "
+            "in at /admin/ (the Wagtail admin; Django's own admin, if you enable it, is "
+            "at /django-admin/).\n"
+            "\n"
+            "    # OPTIONAL - multilingual (for example English + Spanish). The plugin\n"
+            "    # does not touch your settings.py or urls.py, so these edits are yours.\n"
+            "    # Install wagtail-localize, then in settings.py:\n"
+            "    USE_I18N = True\n"
+            "    WAGTAIL_I18N_ENABLED = True\n"
+            '    LANGUAGE_CODE = "en"\n'
+            '    LANGUAGES = [("en", "English"), ("es", "Spanish")]\n'
+            "    WAGTAIL_CONTENT_LANGUAGES = LANGUAGES\n"
+            "    # settings.py - add to INSTALLED_APPS:\n"
+            '    "wagtail_localize",\n'
+            '    "wagtail_localize.locales",  # replaces "wagtail.locales"\n'
+            "    # settings.py - add to MIDDLEWARE, after SessionMiddleware and before\n"
+            "    # CommonMiddleware:\n"
+            '    "django.middleware.locale.LocaleMiddleware",\n'
+            "    # urls.py - DELETE the stock non-prefixed line\n"
+            '    #     path("", include(wagtail_urls))\n'
+            "    # from urlpatterns, then add the i18n-wrapped form (keep admin/,\n"
+            "    # documents/, and search/ ABOVE it and OUTSIDE i18n_patterns).\n"
+            '    # prefix_default_language=False keeps "/" serving your default\n'
+            '    # language (a 200), so the health check can stay "/" and you need\n'
+            "    # no health view:\n"
+            "    from django.conf.urls.i18n import i18n_patterns\n"
+            "    from wagtail import urls as wagtail_urls\n"
+            "    urlpatterns += i18n_patterns(\n"
+            '        path("", include(wagtail_urls)), prefix_default_language=False\n'
+            "    )\n"
+            "    # Then create a Locale record for each non-default language (Wagtail\n"
+            "    # admin, Settings, Locales) or /es/ will 404.\n"
+            "\n"
+            "    # If instead you prefix EVERY language (prefix_default_language=True,\n"
+            '    # the Django default), "/" becomes a 302 to "/en/" and fails the\n'
+            "    # Cloudron health check (it needs a 2xx). Then add a health endpoint\n"
+            "    # OUTSIDE i18n_patterns and re-deploy with --health-check-path\n"
+            "    # /healthz/ (or edit healthCheckPath in the manifest) and rebuild:\n"
+            "    from django.http import HttpResponse\n"
+            '    urlpatterns = [path("healthz/", lambda r: HttpResponse("ok")), *urlpatterns]\n'
+            "    # (liveness only - returns 200 without checking the database.)"
+        )
     return "\n\n".join(notes)
 
 
@@ -262,6 +316,15 @@ def changes_summary(config, added_requirements):
         lines.append(
             "- Wrote cloudron_adapters.py into your project package (the allauth "
             "account and social adapters cloudron_settings.py points at)."
+        )
+    if config.enable_wagtail:
+        lines.append(
+            "- Wagtail: added WAGTAILADMIN_BASE_URL and the database search-backend "
+            "override to cloudron_settings.py, and raised the default memoryLimit. The "
+            'health check stays "/" (a stock Wagtail site answers there). You add '
+            "django.contrib.postgres to INSTALLED_APPS yourself; the optional "
+            "multilingual wiring and the matching /healthz/ health view are in the "
+            "Wagtail follow-up note below."
         )
     if added_requirements:
         lines.append(f"- Added requirements: {', '.join(added_requirements)}.")

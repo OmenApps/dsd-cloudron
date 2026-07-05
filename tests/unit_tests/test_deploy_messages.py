@@ -1,3 +1,4 @@
+from dsd_cloudron import deploy_messages as dm
 from dsd_cloudron.deploy_messages import followup_notes
 from dsd_cloudron.packaging import CloudronAppConfig
 
@@ -49,3 +50,26 @@ def test_changes_summary_names_adapters_on_sso():
     assert "cloudron_adapters.py" not in changes_summary(
         _config(enable_sso=True, greenfield=True), []
     )
+
+
+def test_followup_notes_wagtail_block():
+    notes = dm.followup_notes(_config(enable_wagtail=True))
+    assert "Wagtail:" in notes
+    assert "update_index" in notes
+    assert "healthz/" in notes
+    assert "i18n_patterns" in notes
+    assert "wagtail_localize" in notes
+    # The Postgres database search backend requires django.contrib.postgres in
+    # INSTALLED_APPS, and the plugin does not edit settings.py, so the note must
+    # hand the operator that step (a validated Wagtail requirement).
+    assert "django.contrib.postgres" in notes
+
+
+def test_followup_notes_no_wagtail_by_default():
+    assert "Wagtail:" not in dm.followup_notes(_config())
+
+
+def test_changes_summary_mentions_wagtail():
+    summary = dm.changes_summary(_config(enable_wagtail=True), [])
+    assert "Wagtail" in summary
+    assert "Wagtail" not in dm.changes_summary(_config(), [])

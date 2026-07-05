@@ -29,6 +29,12 @@ def test_context_exposes_enable_wagtail():
     assert packaging._context(_cfg())["enable_wagtail"] is False
 
 
+def test_readme_has_wagtail_section():
+    out = packaging.render_readme(_cfg(enable_wagtail=True))
+    assert "Wagtail on Cloudron" in out
+    assert "Wagtail on Cloudron" not in packaging.render_readme(_cfg())
+
+
 def test_wagtail_and_celery_coexist():
     # The plan requires --wagtail --celery to work together. At the settings level
     # both blocks must render: the Wagtail glue and the Celery broker. (The container

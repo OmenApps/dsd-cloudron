@@ -53,7 +53,21 @@ signup is closed while OIDC first-login provisioning keeps working. Your
 `INSTALLED_APPS`, `MIDDLEWARE`, and `urls.py` are NOT auto-wired - a retrofit deploy
 will not rewrite them. Finish that wiring yourself: see `CLOUDRON_NEXT_STEPS.md`
 (written next to this file after each deploy), which carries the exact copy-paste block.
-{% endif %}{% endif %}
+{% endif %}{% endif %}{% if enable_wagtail %}
+### Wagtail on Cloudron
+
+`cloudron_settings.py` sets `WAGTAILADMIN_BASE_URL` from `CLOUDRON_APP_ORIGIN` and forces the
+database search backend (Postgres full-text), overriding an Elasticsearch or OpenSearch
+backend that Cloudron does not provide. That backend needs `django.contrib.postgres` in your
+`INSTALLED_APPS` (the plugin does not edit `settings.py`, so add it yourself). Uploaded media
+and generated renditions persist on `/app/data/media`. The health check stays `/`, which a
+stock Wagtail site answers with its home page. Sign in at `/admin/` (the Wagtail admin;
+Django's is at `/django-admin/`). If you enable i18n, wrap your page routes in `i18n_patterns`
+with `prefix_default_language=False` so your default language stays at `/` (a 200) and nothing
+else changes; if you prefix every language, `/` redirects and fails the health check, so add a
+health view outside `i18n_patterns` and re-deploy with `--health-check-path /healthz/`. See
+`CLOUDRON_NEXT_STEPS.md` for the exact wiring.
+{% endif %}
 ## Deploy and iterate
 
 ```bash
