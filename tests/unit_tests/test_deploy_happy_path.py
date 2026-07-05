@@ -98,6 +98,11 @@ def test_deploy_reconfigure_reruns_artifacts_and_skips_settings(monkeypatch, tmp
     assert "HAND EDIT" not in dockerfile.read_text(encoding="utf-8")  # restored
     assert "# dsd-cloudron settings." not in settings.read_text(encoding="utf-8")
     assert added == []
+    # A file was overwritten, so the "run cloudron update" reminder fires (and not the
+    # "no changes" branch). This proves the deploy went through _reconfigure's tail.
+    out = dsd_config.stdout.getvalue()
+    assert "cloudron update" in out
+    assert "No changes were made" not in out
 
 
 def test_deploy_reconfigure_preserves_tuned_manifest_sizing(monkeypatch, tmp_path):
@@ -130,6 +135,21 @@ def test_deploy_reconfigure_preserves_tuned_manifest_sizing(monkeypatch, tmp_pat
     dsd_config.automate_all = False
     plugin_config.reconfigure = True  # memory_limit left at the 1 GB CLI default
 
+    # Monkeypatch add_package so the test does not rely on the normal path crashing on a
+    # None requirements list to "prove" reconfigure ran; the assertions below discriminate
+    # the reconfigure branch from a fall-through to a full deploy instead.
+    added = []
+    monkeypatch.setattr(
+        pd.plugin_utils, "add_package", lambda name, version="": added.append(name)
+    )
+
     PlatformDeployer().deploy()
 
     assert json.loads(manifest.read_text(encoding="utf-8"))["memoryLimit"] == 2147483648
+    # Discriminate the reconfigure branch: a fall-through to the full deploy would append
+    # the settings block and call add_package. Nothing changed on disk (only the manifest
+    # was hand-tuned, and reconfigure reads that sizing back), so the "no changes" branch
+    # fires rather than the update reminder.
+    assert "# dsd-cloudron settings." not in settings.read_text(encoding="utf-8")
+    assert added == []
+    assert "No changes were made" in dsd_config.stdout.getvalue()

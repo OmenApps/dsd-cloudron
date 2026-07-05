@@ -99,6 +99,14 @@ reconfigure_update_reminder = (
 )
 
 
+reconfigure_automate_all_conflict = (
+    "--reconfigure cannot be combined with --automate-all. Reconfigure reviews each "
+    "artifact change interactively (it shows a diff and asks before overwriting), "
+    "which --automate-all cannot answer. Re-run with just --reconfigure and answer "
+    "the prompts, or drop --reconfigure for a full automated deploy."
+)
+
+
 def uv_requirements_exported(req_path):
     """Status note when a uv project's lock is materialized for core.
 

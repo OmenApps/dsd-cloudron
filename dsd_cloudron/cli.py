@@ -142,6 +142,15 @@ def validate_cli(options):
     if plugin_config.enable_celery and not plugin_config.enable_redis:
         raise DSDCommandError(platform_msgs.celery_requires_redis)
 
+    # Reconfigure is an interactive review flow: it shows a per-file diff and asks
+    # before overwriting each artifact, and core's get_confirmation only auto-answers
+    # under unit/e2e testing, never under --automate-all. The combination would block
+    # on input() (or EOFError under cron/CI) at the first changed file, and deploy()
+    # returns right after the re-render, so --automate-all would not commit or install
+    # anyway. Reject it up front with a clear message.
+    if plugin_config.reconfigure and dsd_config.automate_all:
+        raise DSDCommandError(platform_msgs.reconfigure_automate_all_conflict)
+
     # --location is required with --automate-all to avoid an interactive prompt.
     if dsd_config.automate_all and not plugin_config.location:
         raise DSDCommandError(platform_msgs.location_required)

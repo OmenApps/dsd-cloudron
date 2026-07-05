@@ -236,19 +236,24 @@ def apply_manifest_values(config, manifest_path):
     has already proven the config declares the same addons, so there is nothing to
     change and, crucially, no addon can be silently dropped by a mismatched flag.
     Every other top-level key (title, author, id, checklist, addons, httpPort, ...)
-    survives. Returns True if the file's contents changed.
+    survives. Returns True when a scalar actually changed and the file was rewritten.
     """
     manifest_path = Path(manifest_path)
-    original = manifest_path.read_text(encoding="utf-8")
-    data = json.loads(original)
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    # Compare the parsed values, not the serialized text: an operator who reformatted
+    # the manifest (different indentation, key order, trailing newline) but left the
+    # two scalars alone should see no rewrite and no "changed" signal, so reconfigure
+    # does not fire a spurious "run cloudron update" reminder for a cosmetic-only edit.
+    if (
+        data.get("memoryLimit") == config.memory_limit
+        and data.get("healthCheckPath") == config.health_check_path
+    ):
+        return False
 
     data["memoryLimit"] = config.memory_limit
     data["healthCheckPath"] = config.health_check_path
-
-    updated = json.dumps(data, indent=2) + "\n"
-    if updated == original:
-        return False
-    manifest_path.write_text(updated, encoding="utf-8")
+    manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return True
 
 
@@ -569,9 +574,13 @@ def _stack_flags_from_disk(target_dir):
     target_dir = Path(target_dir)
     try:
         data = json.loads((target_dir / _MANIFEST_NAME).read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        # A non-UTF-8 manifest raises UnicodeDecodeError before json even parses it;
+        # translate both into the same clean abort (this runs before any write, so
+        # nothing is half-written) rather than letting one leak as a raw traceback.
         raise ReconfigureError(
-            f"{_MANIFEST_NAME} is not valid JSON ({error}); fix it before reconfiguring."
+            f"{_MANIFEST_NAME} could not be read as UTF-8 JSON ({error}); fix it "
+            "before reconfiguring."
         ) from error
     addons = data.get("addons", {})
     return {
@@ -639,8 +648,18 @@ def reconfigure(config, target_dir, confirm, output):
     for path, contents, executable in _planned_artifacts(config, target_dir):
         if path.name == _MANIFEST_NAME:
             continue  # synced surgically after the loop, never diffed
-        current = path.read_text(encoding="utf-8") if path.exists() else ""
         rel = path.relative_to(target_dir)
+        try:
+            current = path.read_text(encoding="utf-8") if path.exists() else ""
+        except UnicodeDecodeError as error:
+            # A hand-edited artifact saved in a non-UTF-8 encoding cannot be diffed;
+            # abort cleanly (as ReconfigureError, which both callers translate) rather
+            # than raising a raw UnicodeDecodeError - a ValueError the retrofit caller's
+            # OSError handler would miss.
+            raise ReconfigureError(
+                f"{rel} on disk is not valid UTF-8 ({error}); reconfigure cannot diff "
+                "it. Fix or remove the file, then reconfigure again."
+            ) from error
         if current == contents:
             result.unchanged.append(path)
             output(f"  No change: {rel}")

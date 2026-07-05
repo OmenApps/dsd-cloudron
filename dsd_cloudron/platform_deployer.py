@@ -73,10 +73,14 @@ class PlatformDeployer:
 
         self._validate_platform()
         self.config = self._build_config()
-        self._check_health_check_path()
+        # Reconfigure preserves the deployed healthCheckPath (it reads it back from the
+        # manifest), so it must branch before _check_health_check_path: that pre-flight
+        # resolve() check would otherwise run against the CLI-default path ("/"), not the
+        # value actually shipped, and print a warning about a path that is never used.
         if plugin_config.reconfigure:
             self._reconfigure()
             return
+        self._check_health_check_path()
         # render_all is not transactional and _add_celery_app/_modify_settings
         # edit files in place, so a filesystem error mid-write would otherwise
         # surface as a raw traceback with the project left partially modified.

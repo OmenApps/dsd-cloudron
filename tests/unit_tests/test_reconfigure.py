@@ -16,19 +16,27 @@ def _config(**kwargs):
 
 
 class _Recorder:
-    """A stand-in for the injected confirm/output callbacks."""
+    """A stand-in for the injected confirm/output callbacks.
+
+    `events` is a single ordered log of both callbacks so a test can assert that a
+    diff was emitted (output) before its file was prompted (confirm); `prompted` and
+    `lines` are the flat views the other tests read.
+    """
 
     def __init__(self, answer=True):
         self.answer = answer
         self.prompted = []
         self.lines = []
+        self.events = []
 
     def confirm(self, path):
         self.prompted.append(path)
+        self.events.append(("confirm", path))
         return self.answer
 
     def output(self, message):
         self.lines.append(message)
+        self.events.append(("output", message))
 
 
 def test_reconfigure_requires_a_manifest(tmp_path):
@@ -39,20 +47,26 @@ def test_reconfigure_requires_a_manifest(tmp_path):
         reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
 
 
-def test_reconfigure_refuses_a_stack_toggle(tmp_path):
-    render_all(_config(), tmp_path)  # celery off: no celery supervisor program
+@pytest.mark.parametrize(
+    "flag", ["enable_redis", "enable_sendmail", "enable_sso", "enable_celery"]
+)
+def test_reconfigure_refuses_a_stack_toggle(tmp_path, flag):
+    # render_all leaves redis+sendmail on and sso+celery off; flipping ANY one of the
+    # four stack flags needs deps + wiring reconfigure does not touch (each flag has its
+    # own hand-written on-disk probe), so it must refuse before writing or prompting for
+    # anything rather than shipping a broken image.
+    render_all(_config(), tmp_path)
     rec = _Recorder(answer=True)
-    # Enabling a stack needs deps + wiring reconfigure does not touch, so it refuses
-    # before writing anything rather than shipping a celery worker with no broker/deps.
+    flipped = not getattr(_config(), flag)
     with pytest.raises(ReconfigureError):
         reconfigure(
-            _config(enable_celery=True),
+            _config(**{flag: flipped}),
             tmp_path,
             confirm=rec.confirm,
             output=rec.output,
         )
-    assert not (tmp_path / "blog" / "celery.py").exists()
     assert rec.prompted == []
+    assert not (tmp_path / "blog" / "celery.py").exists()
 
 
 def test_reconfigure_rejects_a_corrupt_manifest(tmp_path):
@@ -62,6 +76,29 @@ def test_reconfigure_rejects_a_corrupt_manifest(tmp_path):
     with pytest.raises(ReconfigureError):
         reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
     assert rec.prompted == []
+
+
+def test_reconfigure_rejects_a_non_utf8_manifest(tmp_path):
+    # A manifest saved in a non-UTF-8 encoding raises UnicodeDecodeError (a ValueError,
+    # not JSONDecodeError) before json parses it; it must still abort cleanly as a
+    # ReconfigureError before any prompt or write, not leak a raw traceback.
+    render_all(_config(), tmp_path)
+    (tmp_path / "CloudronManifest.json").write_bytes(b"\xff\xfe not utf-8")
+    rec = _Recorder()
+    with pytest.raises(ReconfigureError):
+        reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
+    assert rec.prompted == []
+
+
+def test_reconfigure_rejects_a_non_utf8_artifact(tmp_path):
+    # A hand-edited artifact saved in a non-UTF-8 encoding cannot be diffed; reconfigure
+    # aborts as a ReconfigureError (which both callers translate) rather than raising a
+    # raw UnicodeDecodeError the retrofit caller's OSError handler would miss.
+    render_all(_config(), tmp_path)
+    (tmp_path / "Dockerfile").write_bytes(b"FROM python\n\xff\xfe\n")
+    rec = _Recorder()
+    with pytest.raises(ReconfigureError):
+        reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
 
 
 def test_unchanged_artifacts_are_not_prompted_or_written(tmp_path):
@@ -101,9 +138,17 @@ def test_diff_is_emitted_before_confirm(tmp_path):
     (tmp_path / "Dockerfile").write_text("HAND EDIT\n", encoding="utf-8")
     rec = _Recorder(answer=False)
     reconfigure(_config(), tmp_path, confirm=rec.confirm, output=rec.output)
-    blob = "\n".join(rec.lines)
-    assert "HAND EDIT" in blob
-    assert "--- " in blob
+    # The diff must be emitted via output() BEFORE the file's confirm() is asked, so the
+    # operator decides on a change they have already seen. Assert on the ordered event
+    # log, not two separate lists, so a regression that swapped the order would fail.
+    first_confirm = next(
+        i for i, (kind, _) in enumerate(rec.events) if kind == "confirm"
+    )
+    emitted_before_prompt = "".join(
+        message for kind, message in rec.events[:first_confirm] if kind == "output"
+    )
+    assert "HAND EDIT" in emitted_before_prompt
+    assert "--- " in emitted_before_prompt
 
 
 def test_manifest_scalar_is_synced_not_diffed(tmp_path):

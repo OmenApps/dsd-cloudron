@@ -83,6 +83,14 @@ def test_validate_cli_reconfigure_defaults_false():
     assert plugin_config.reconfigure is False
 
 
+def test_validate_cli_rejects_reconfigure_with_automate_all():
+    # Reconfigure prompts per file; --automate-all cannot answer, so the combination is
+    # rejected up front rather than blocking on input() at the first changed artifact.
+    dsd_config.automate_all = True
+    with pytest.raises(DSDCommandError):
+        cli.validate_cli(_options(reconfigure=True))
+
+
 def test_validate_cli_rejects_celery_without_redis():
     with pytest.raises(DSDCommandError):
         cli.validate_cli(_options(celery=True, no_redis=True))
