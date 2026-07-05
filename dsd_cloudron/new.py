@@ -205,10 +205,19 @@ def _read_project_state(project_dir):
     `dsd-cloudron new` does not persist its flags, so reconfigure reads the current
     state back out: the CloudronManifest.json for app_id/title/memoryLimit/
     healthCheckPath and the addon set (redis/sendmail/oidc), the supervisor dir for
-    Celery, the Dockerfile for the package manager, and the retrofit
-    cloudron_adapters.py for greenfield. pkg_manager and greenfield are reconstructed,
-    not assumed, so a re-render reproduces the project faithfully even if this command
-    is (mis)run against a retrofit project rather than a greenfield one.
+    Celery, and the Dockerfile for the package manager. pkg_manager is reconstructed
+    rather than assumed, so a re-render reproduces the artifacts faithfully.
+
+    Two caveats on the reconstruction, both currently inert:
+      - greenfield is inferred from the absence of the retrofit cloudron_adapters.py,
+        which is only a real signal when SSO is on (that file only exists for a
+        retrofit SSO deploy). With SSO off no artifact reads greenfield, so a re-render
+        is byte-identical whatever it resolves to.
+      - version/author/http_port are not read back, so CloudronAppConfig falls back to
+        its defaults. Reconfigure never re-renders the manifest body (it syncs only the
+        two scalars, preserving version/author/id), and no flat template reads these,
+        so the defaults are never written. Read them back here before adding a template
+        variable or CLI override that depends on them.
     """
     project_dir = Path(project_dir)
     manifest_path = project_dir / "CloudronManifest.json"
@@ -220,15 +229,25 @@ def _read_project_state(project_dir):
         )
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        # A non-UTF-8 manifest raises UnicodeDecodeError before json parses it; abort
+        # cleanly for both, matching how packaging._stack_flags_from_disk is hardened.
         _fail(
-            f"{manifest_path} is not valid JSON ({exc}); fix it before reconfiguring."
+            f"{manifest_path} could not be read as UTF-8 JSON ({exc}); fix it before "
+            "reconfiguring."
         )
+    if not isinstance(manifest, dict):
+        _fail(f"{manifest_path} is not a JSON object; fix it before reconfiguring.")
     slug = _detect_project_slug(project_dir)
     addons = manifest.get("addons", {})
     dockerfile_path = project_dir / "Dockerfile"
+    # The Dockerfile is only sniffed for an ASCII marker, so decode leniently: a
+    # non-UTF-8 Dockerfile must not crash the reconstruction the way the manifest read
+    # (which needs valid JSON) would.
     dockerfile = (
-        dockerfile_path.read_text(encoding="utf-8") if dockerfile_path.exists() else ""
+        dockerfile_path.read_text(encoding="utf-8", errors="replace")
+        if dockerfile_path.exists()
+        else ""
     )
     return {
         "project_name": slug,
@@ -243,10 +262,9 @@ def _read_project_state(project_dir):
         "enable_sendmail": "sendmail" in addons,
         "enable_celery": (project_dir / "supervisor" / "celery-worker.conf").exists(),
         "enable_sso": "oidc" in addons,
-        # Only the retrofit path ships cloudron_adapters.py: its absence means the
-        # project owns its allauth wiring (greenfield), its presence means a retrofit
-        # deploy. Reconstruct that rather than assume greenfield, so a re-render keeps
-        # the right adapter pointers and readme wording.
+        # cloudron_adapters.py exists only for a retrofit SSO deploy, so its absence
+        # implies greenfield when SSO is on (keeping the adapter pointers and readme
+        # wording correct); when SSO is off no artifact reads greenfield (see docstring).
         "greenfield": not (project_dir / slug / "cloudron_adapters.py").exists(),
     }
 
@@ -278,7 +296,17 @@ def run_reconfigure(args):
     config = reconfigure_config(project_dir, args)
 
     def _confirm(path):
-        answer = input(f"Overwrite {path.relative_to(project_dir)}? [y/N] ")
+        # reconfigure is an interactive review flow with no --yes/--automate-all; a
+        # closed stdin (piped, redirected from /dev/null, most CI) makes input() raise
+        # EOFError. Turn that into the module's clean _fail rather than a raw traceback.
+        try:
+            answer = input(f"Overwrite {path.relative_to(project_dir)}? [y/N] ")
+        except EOFError:
+            _fail(
+                "reconfigure needs an interactive terminal to review each change; run "
+                "it in a tty, or edit the files directly and re-render with a full "
+                "`dsd-cloudron new`."
+            )
         return answer.strip().lower() in ("y", "yes")
 
     try:

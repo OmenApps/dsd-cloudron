@@ -284,3 +284,172 @@ def test_run_reconfigure_overwrites_changed_file_on_yes(tmp_path, monkeypatch):
     args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
     new.run_reconfigure(args)
     assert "HAND EDIT" not in (tmp_path / "Dockerfile").read_text(encoding="utf-8")
+
+
+def test_run_reconfigure_leaves_file_on_no(tmp_path, monkeypatch, capsys):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+    (tmp_path / "Dockerfile").write_text("HAND EDIT\n", encoding="utf-8")
+    # Declining leaves the file exactly as edited and reports no changes; this proves
+    # new.py's own _confirm closure and the "no changes" branch, not just packaging.
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
+    new.run_reconfigure(args)
+    assert (tmp_path / "Dockerfile").read_text(encoding="utf-8") == "HAND EDIT\n"
+    assert "No changes were made" in capsys.readouterr().out
+
+
+def test_run_reconfigure_applies_memory_limit_to_manifest(tmp_path, monkeypatch):
+    import json
+
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+    # End-to-end: the --memory-limit CLI arg must reach the written manifest. Only the
+    # manifest scalar changes, so nothing is diffed or prompted (input is a safety net).
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    args = new.parse_args(
+        ["reconfigure", "--project-dir", str(tmp_path), "--memory-limit", "2147483648"]
+    )
+    new.run_reconfigure(args)
+    manifest = json.loads(
+        (tmp_path / "CloudronManifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["memoryLimit"] == 2147483648
+
+
+def test_run_reconfigure_aborts_cleanly_without_a_tty(tmp_path, monkeypatch):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+    (tmp_path / "Dockerfile").write_text("HAND EDIT\n", encoding="utf-8")
+
+    def _no_stdin(prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", _no_stdin)
+    args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        new.run_reconfigure(args)
+
+
+def test_read_project_state_reconstructs_a_celery_project(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            enable_celery=True,
+            enable_redis=True,
+        ),
+        tmp_path,
+    )
+    state = new._read_project_state(tmp_path)
+    assert state["enable_celery"] is True  # supervisor/celery-worker.conf present
+    assert state["enable_redis"] is True
+
+
+def test_reconfigure_config_rejects_an_impossible_reconstructed_state(tmp_path):
+    import json
+
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            enable_celery=True,
+            enable_redis=True,
+        ),
+        tmp_path,
+    )
+    # A celery worker on disk but the Redis addon deleted from the manifest is an
+    # impossible state; CloudronAppConfig.__post_init__ rejects it and reconfigure_config
+    # must translate that ValueError into a clean _fail (SystemExit), not a traceback.
+    manifest_path = tmp_path / "CloudronManifest.json"
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del data["addons"]["redis"]
+    manifest_path.write_text(json.dumps(data), encoding="utf-8")
+    args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        new.reconfigure_config(tmp_path, args)
+
+
+def test_read_project_state_rejects_a_non_utf8_manifest(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    # The manifest read must abort cleanly on non-UTF-8 bytes (a UnicodeDecodeError,
+    # not JSONDecodeError), matching the retrofit/packaging sibling readers.
+    render_all(
+        CloudronAppConfig(project_name="shop", app_id="com.example.shop"), tmp_path
+    )
+    (tmp_path / "CloudronManifest.json").write_bytes(b"\xff\xfe not utf-8")
+    with pytest.raises(SystemExit):
+        new._read_project_state(tmp_path)
+
+
+def test_read_project_state_missing_package_dir_fails_cleanly(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    # Manifest present but the project package (its cloudron_settings.py) gone: the slug
+    # cannot be detected, so it fails cleanly rather than reconstructing a wrong package.
+    render_all(
+        CloudronAppConfig(project_name="shop", app_id="com.example.shop"), tmp_path
+    )
+    (tmp_path / "shop" / "cloudron_settings.py").unlink()
+    with pytest.raises(SystemExit):
+        new._read_project_state(tmp_path)
+
+
+def test_reconfigure_of_a_retrofit_without_sso_re_renders_byte_identically(
+    tmp_path, monkeypatch
+):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    # A retrofit-no-SSO project ships no cloudron_adapters.py, so reconstruction reads
+    # greenfield=True even though it was deployed greenfield=False. That misread is inert:
+    # no artifact reads greenfield when SSO is off, so the re-render matches disk exactly
+    # and reconfigure prompts for nothing. This pins the invariant the reconstruction
+    # docstring rests on.
+    render_all(
+        CloudronAppConfig(
+            project_name="shop", app_id="com.example.shop", greenfield=False
+        ),
+        tmp_path,
+    )
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    prompted = []
+    monkeypatch.setattr(
+        "builtins.input", lambda prompt="": prompted.append(prompt) or "n"
+    )
+    args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
+    new.run_reconfigure(args)
+    assert prompted == []  # nothing differed, so nothing was prompted
+    after = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    assert after == before
