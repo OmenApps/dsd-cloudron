@@ -51,8 +51,8 @@ class PluginCLI:
         group.add_argument(
             "--memory-limit",
             type=int,
-            default=1073741824,
-            help="Memory limit in bytes (default ~1 GB).",
+            default=None,
+            help="Memory limit in bytes (default ~1 GB, ~1.5 GB with --wagtail).",
         )
         group.add_argument(
             "--health-check-path",
@@ -112,13 +112,17 @@ class PluginCLI:
             action="store_true",
             help="Render Cloudron OIDC config (oidc addon + allauth provider settings) and add django-allauth. You finish wiring allauth into INSTALLED_APPS/urls; see the success message.",
         )
+        group.add_argument(
+            "--wagtail",
+            action="store_true",
+            help="Configure an existing Wagtail project for Cloudron: set WAGTAILADMIN_BASE_URL and a database search backend, raise the default memory limit, and print wiring steps. The health check stays '/' (a stock Wagtail site answers there); enable i18n and you finish a health view and set --health-check-path /healthz/ yourself. See the follow-up notes.",
+        )
 
 
 def validate_cli(options):
     """Validate options and write them onto the plugin_config singleton."""
     plugin_config.location = options["location"]
     plugin_config.app_id = options["app_id"]
-    plugin_config.memory_limit = options["memory_limit"]
     plugin_config.health_check_path = options["health_check_path"]
     plugin_config.force_overwrite = options["force_overwrite"]
     plugin_config.server = options["server"]
@@ -129,6 +133,21 @@ def validate_cli(options):
     plugin_config.enable_sendmail = not options["no_sendmail"]
     plugin_config.enable_celery = options["celery"]
     plugin_config.enable_sso = options["sso"]
+    plugin_config.enable_wagtail = options["wagtail"]
+
+    # --memory-limit defaults to None (not passed) so an explicit value is
+    # distinguishable from the default. Wagtail raises the default because Pillow
+    # image processing and the Wagtail admin need more headroom than a plain Django
+    # app. An explicit --memory-limit always wins. Wagtail does NOT change the
+    # health check path here: a stock Wagtail site serves a 200 at "/", so the
+    # plain default works; only i18n needs a dedicated endpoint, opted into with
+    # --health-check-path.
+    if options["memory_limit"] is not None:
+        plugin_config.memory_limit = options["memory_limit"]
+    elif plugin_config.enable_wagtail:
+        plugin_config.memory_limit = 1610612736
+    else:
+        plugin_config.memory_limit = 1073741824
 
     # location and server end up in `cloudron` command strings; reject values
     # that could mis-split the command before anything is written.

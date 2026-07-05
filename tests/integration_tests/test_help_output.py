@@ -26,6 +26,7 @@ def test_plugin_help_output(tmp_project, request):
         "--no-sendmail",
         "--celery",
         "--sso",
+        "--wagtail",
     ]:
         assert fragment in stdout
     # The API token is intentionally not a CLI flag; auth comes from the

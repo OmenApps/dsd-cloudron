@@ -26,6 +26,7 @@ class PluginConfig:
         self.enable_sendmail = True
         self.enable_celery = False
         self.enable_sso = False
+        self.enable_wagtail = False
         self.server = ""
         self.allow_selfsigned = False
         self.reconfigure = False

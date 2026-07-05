@@ -14,7 +14,7 @@ def _options(**overrides):
     base = {
         "location": "blog",
         "app_id": "",
-        "memory_limit": 1073741824,
+        "memory_limit": None,
         "health_check_path": "/",
         "force_overwrite": False,
         "server": "",
@@ -23,6 +23,7 @@ def _options(**overrides):
         "no_sendmail": False,
         "celery": False,
         "sso": False,
+        "wagtail": False,
         "reconfigure": False,
     }
     base.update(overrides)
@@ -71,6 +72,30 @@ def test_validate_cli_sets_app_intrusive_flags():
     cli.validate_cli(_options(celery=True, sso=True))
     assert plugin_config.enable_celery is True
     assert plugin_config.enable_sso is True
+
+
+def test_validate_cli_sets_wagtail_flag():
+    cli.validate_cli(_options(wagtail=True))
+    assert plugin_config.enable_wagtail is True
+
+
+def test_wagtail_raises_memory_default_and_keeps_root_health():
+    cli.validate_cli(_options(wagtail=True))
+    assert plugin_config.memory_limit == 1610612736
+    # Wagtail does NOT move the health check off the root: a stock Wagtail site
+    # serves its home page (a 200) at "/", so the plain default still works. Only
+    # a multilingual site needs to move it, and that is an explicit opt-in.
+    assert plugin_config.health_check_path == "/"
+
+
+def test_plain_deploy_keeps_1gb():
+    cli.validate_cli(_options(wagtail=False))
+    assert plugin_config.memory_limit == 1073741824
+
+
+def test_explicit_memory_wins_over_wagtail_default():
+    cli.validate_cli(_options(wagtail=True, memory_limit=2147483648))
+    assert plugin_config.memory_limit == 2147483648
 
 
 def test_validate_cli_maps_reconfigure_flag():
@@ -140,6 +165,7 @@ def test_parser_registration_adds_flags():
         "--no-redis",
         "--celery",
         "--sso",
+        "--wagtail",
         "--force-overwrite",
         "--reconfigure",
     ]:

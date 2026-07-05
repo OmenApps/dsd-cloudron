@@ -23,7 +23,9 @@ dsd-cloudron" argument group:
 : Reverse-DNS app id, e.g. `com.example.blog`.
 
 `--memory-limit`
-: Memory limit in bytes. Default `1073741824` (about 1 GB).
+: Memory limit in bytes. Default `1073741824` (about 1 GB), or
+  `1610612736` (about 1.5 GB) when `--wagtail` is passed. An explicit value
+  always wins over either default.
 
 `--health-check-path`
 : Path that returns a 2xx response when the app is healthy. Default `/`.
@@ -54,6 +56,14 @@ dsd-cloudron" argument group:
 `--sso`
 : Render Cloudron OIDC config (the oidc addon and allauth provider
   settings) and add django-allauth. See {doc}`/guides/enable-sso`.
+
+`--wagtail`
+: Configure an existing Wagtail project for Cloudron: set
+  `WAGTAILADMIN_BASE_URL` and force the database search backend in
+  `cloudron_settings.py`, and raise the default memory limit to about 1.5 GB.
+  The health check stays `/` (a stock Wagtail site answers there); the i18n
+  health view and multilingual wiring remain yours to add. See
+  {doc}`/guides/deploy-wagtail-project`.
 
 ## `dsd-cloudron new`
 
