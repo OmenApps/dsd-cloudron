@@ -24,6 +24,7 @@ guides/retrofit-existing-project
 guides/scaffold-new-project
 guides/enable-sso
 guides/enable-celery
+guides/deploy-wagtail-project
 guides/addons-and-email
 guides/operating-and-updating
 guides/troubleshooting

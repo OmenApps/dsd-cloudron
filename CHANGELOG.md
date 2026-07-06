@@ -9,6 +9,12 @@ Initial release.
 - Batteries-included artifact set: PostgreSQL, Redis, Celery, sendmail, OIDC SSO,
   nginx + gunicorn, rendered through one packaging core.
 - On-server build via `cloudron install` / `cloudron update`.
+- Retrofit `--wagtail`: configure an existing Wagtail project for Cloudron. Renders
+  WAGTAILADMIN_BASE_URL and forces the database search backend in cloudron_settings.py
+  (overriding an Elasticsearch/OpenSearch backend Cloudron does not provide) and raises
+  the default memory limit. The health check stays `/`, which a stock Wagtail site
+  answers; multilingual sites add a `/healthz/` view and pass `--health-check-path`.
+  Media and renditions persist on /app/data/media. The plain-Django path is unchanged.
 
 Verified on a real Cloudron server (8.0.2): a `--sso` install completes the OIDC
 login round-trip against the `/accounts/oidc/cloudron/login/callback/` redirect
