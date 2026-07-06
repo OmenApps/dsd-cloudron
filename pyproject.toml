@@ -70,9 +70,16 @@ dsd-cloudron = "dsd_cloudron.new:main"
 "GitHub" = "https://github.com/omenapps/dsd-cloudron"
 
 [tool.setuptools]
+# project_template and its hooks directory hold Python files, so setuptools sees
+# them as importable packages. Declare them here so they are shipped deliberately
+# rather than swept in ambiguously by include-package-data. The rendered template
+# tree under {{cookiecutter.project_slug}} is not a valid package name, so it stays
+# package data and rides along through the MANIFEST.in recursive-include.
 packages = [
     "dsd_cloudron",
     "dsd_cloudron.templates",
+    "dsd_cloudron.project_template",
+    "dsd_cloudron.project_template.hooks",
 ]
 include-package-data = true
 
