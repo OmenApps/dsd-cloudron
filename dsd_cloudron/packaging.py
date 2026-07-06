@@ -120,9 +120,10 @@ def _context(config):
     Only the variables the flat templates actually reference are included.
     Most conditional logic (addons, settings blocks, supervisor programs) lives
     in Python, not in the templates; the exception is readme_cloudron.md, whose
-    SSO wiring section branches on greenfield/enable_sso. Values must be str or
-    bool: the standalone Engine localizes non-string ints/floats through global
-    settings during rendering, which raises offline, but bools are safe.
+    SSO and Wagtail sections branch on greenfield/enable_sso and enable_wagtail.
+    Values must be str or bool: the standalone Engine localizes non-string
+    ints/floats through global settings during rendering, which raises offline,
+    but bools are safe.
     """
     # Pin DJANGO_SETTINGS_MODULE in the container only when it differs from the
     # <project>.settings default. A split-settings (Wagtail) project has the Cloudron

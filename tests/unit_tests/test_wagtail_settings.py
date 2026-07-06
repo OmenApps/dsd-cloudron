@@ -39,7 +39,7 @@ def test_wagtail_flag_blast_radius_excludes_runtime_files():
     # The --wagtail flag's blast radius is exactly cloudron_settings.py, the manifest,
     # and the README. The runtime scripts must render byte-identically with and
     # without it, so a future edit that accidentally branched one of them on
-    # enable_wagtail fails here (mirroring test_invariants.py's per-flag isolation).
+    # enable_wagtail fails here.
     plain = _cfg()
     wag = _cfg(enable_wagtail=True)
     assert packaging.render_dockerfile(plain) == packaging.render_dockerfile(wag)
