@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 2,
+  "id": "com.example.blog",
+  "title": "Blog",
+  "author": "Your Name",
+  "version": "1.0.0",
+  "description": "Deployed with dsd-cloudron.",
+  "tagline": "A Django application on Cloudron.",
+  "healthCheckPath": "/",
+  "httpPort": 8000,
+  "memoryLimit": 1610612736,
+  "optionalSso": true,
+  "addons": {
+    "localstorage": {},
+    "postgresql": {},
+    "redis": {
+      "noPassword": true
+    },
+    "sendmail": {
+      "supportsDisplayName": true
+    }
+  },
+  "checklist": {
+    "change-default-password": {
+      "message": "Retrieve and secure the generated admin password"
+    }
+  },
+  "postInstallMessage": "This app was configured with dsd-cloudron. A local admin account `admin` was created; its generated password is on the server at /app/data/.initial_admin_password (read it with `cloudron exec`). Read it during this first-boot window: the file is removed automatically on the next start once the app is initialized. If you miss it, reset the password with `cloudron exec` and `manage.py changepassword admin`.\n\n<nosso>\nSign in at /admin/ with that account, then change the password immediately.\n</nosso>\n\n<sso>\nSign in with your Cloudron account. The `admin` account above is a local break-glass admin; use it (or `cloudron exec`) to promote your Cloudron user in the Django admin.\n</sso>\n\nSee README-cloudron.md in the app source for the full configuration control surface."
+}

@@ -39,6 +39,20 @@ def _celery_sso_config():
     )
 
 
+def _wagtail_config():
+    # Exactly the defaults plus --wagtail: the retrofit
+    # `deploy --location blog --wagtail` that produced the wagtail.* reference files.
+    # memory_limit matches the raised --wagtail default (1.5 GB); health stays "/".
+    # This is the sole OFFLINE guard for those references - the integration suite
+    # that otherwise diffs them is skipped when the harness is absent.
+    return CloudronAppConfig(
+        project_name="blog",
+        app_id="com.example.blog",
+        enable_wagtail=True,
+        memory_limit=1610612736,
+    )
+
+
 def _uv_config():
     return CloudronAppConfig(
         project_name="blog", app_id="com.example.blog", pkg_manager="uv"
@@ -141,6 +155,25 @@ CASES = [
         lambda: render_dockerfile(_uv_config()),
         EXPECTED / "uv.Dockerfile",
         id="uv-dockerfile",
+    ),
+    # --wagtail retrofit references. The integration suite (test_wagtail.py) diffs
+    # these against a real deploy in CI, but is skipped when the harness is absent,
+    # so these are their offline drift guard - the same source of truth checked both
+    # ways, mirroring the celery_sso cases above.
+    pytest.param(
+        lambda: render_cloudron_settings(_wagtail_config()),
+        REFERENCE / "wagtail.cloudron_settings.py",
+        id="wagtail-settings",
+    ),
+    pytest.param(
+        lambda: render_manifest(_wagtail_config()),
+        REFERENCE / "wagtail.CloudronManifest.json",
+        id="wagtail-manifest",
+    ),
+    pytest.param(
+        lambda: render_readme(_wagtail_config()),
+        REFERENCE / "wagtail.README-cloudron.md",
+        id="wagtail-readme",
     ),
 ]
 
