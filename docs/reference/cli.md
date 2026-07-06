@@ -1,9 +1,10 @@
 # CLI reference
 
-dsd-cloudron adds flags to two entry points: `python manage.py deploy` (the
-core django-simple-deploy command, extended with a dsd-cloudron options
-group) and `dsd-cloudron new` (a standalone scaffolder with its own
-parser).
+dsd-cloudron extends `python manage.py deploy` (the core django-simple-deploy
+command, with an added dsd-cloudron options group) and ships the `dsd-cloudron`
+console script, which has two subcommands: `new` (a standalone scaffolder with
+its own parser) and `reconfigure` (re-render an existing scaffold's artifacts).
+Each surface's flags are below.
 
 ## `python manage.py deploy`
 
@@ -33,6 +34,14 @@ dsd-cloudron" argument group:
 `--force-overwrite`
 : Regenerate Cloudron artifacts that already exist, and replace an existing
   Cloudron settings block without prompting.
+
+`--reconfigure`
+: Re-render the artifacts of the configuration you already deployed, showing a
+  diff and asking before overwriting each file - the reviewable middle ground
+  between skip-if-present and the blunt `--force-overwrite`. Pass the same stack
+  toggles you deployed with (for example `--sso`); reconfigure refuses if they
+  name a different stack than what is deployed, and it preserves the deployed
+  `memoryLimit`/`healthCheckPath`. See {doc}`/guides/operating-and-updating`.
 
 `--server`
 : Cloudron server domain, e.g. `my.example.com`. Selects which logged-in
@@ -112,3 +121,28 @@ App-stack toggles default off:
 `--celery` requires Redis, so combining it with `--no-redis` is rejected
 before anything is written. See {doc}`/guides/scaffold-new-project` for
 what each toggle wires into the generated project.
+
+## `dsd-cloudron reconfigure`
+
+```bash
+dsd-cloudron reconfigure [options]
+```
+
+Re-render a scaffolded project's Cloudron artifacts in place - to pick up an
+improved template or restore a file you hand-edited by mistake - without
+re-scaffolding. It shows a diff and asks before overwriting each artifact,
+skips unchanged files, and leaves a declined file untouched. It never installs
+dependencies or adds and removes supervisor programs, so it refuses if the
+project on disk declares a different stack than the manifest already deploys.
+See {doc}`/guides/operating-and-updating`.
+
+`--project-dir`
+: The scaffolded project to reconfigure. Default `.`.
+
+`--memory-limit`
+: New `memoryLimit` in bytes for `CloudronManifest.json`. Omitted, the current
+  value is kept.
+
+`--health-check-path`
+: New `healthCheckPath` for `CloudronManifest.json`. Omitted, the current value
+  is kept.

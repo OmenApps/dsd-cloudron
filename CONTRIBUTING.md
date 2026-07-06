@@ -10,7 +10,8 @@ what you think it means.
 - All work happens on `main`. There are no feature branches or worktrees.
 - Run `black .` before every commit. The formatting targets are pinned in
   `pyproject.toml`; continuous integration runs `black --check .` and will fail on
-  unformatted code.
+  unformatted code. `ruff check .` lints the package (also configured in
+  `pyproject.toml`), though CI does not gate on it yet.
 - Keep commit messages to a plain sentence of five to twelve words describing the
   change. No conventional-commit prefixes, no co-author or signoff lines.
 
@@ -43,7 +44,7 @@ to `tests/` so a repo-root run does not wander into the vendored `example-*` tre
 The suite prints a `dsd-cloudron test tiers:` line reporting which tiers did not run,
 so a green run never silently hides a skipped tier.
 
-### The four test tiers
+### The test tiers
 
 - `unit_tests` - fast and fully offline. They exercise the render functions, the
   deployer logic, and the config surface without touching the network or a real
@@ -57,6 +58,9 @@ so a green run never silently hides a skipped tier.
   the scaffolded artifacts. They need the `pytest-cookies` plugin (in the `dev` extra)
   and, for the toggle-on scaffolds, the `bake` extra. Without `pytest-cookies` the tier
   is collect-ignored.
+- `build_tests` - assemble a deployable build context and assert on it. The context
+  assembly runs offline as part of the default suite; in CI these also Docker-build and
+  boot-smoke a retrofit and a greenfield app.
 - `e2e_tests` - perform a real live deployment against a Cloudron server. They are
   collect-ignored by default. Run them deliberately, with `cloudron login` already
   done and a subdomain to deploy to:

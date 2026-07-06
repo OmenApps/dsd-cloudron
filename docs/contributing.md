@@ -9,8 +9,9 @@ uses it.
 pip install -e ".[dev]"
 ```
 
-This pulls in `black`, `build`, `pytest`, `pytest-cookies`, and `twine`. To
-also run the toggle-on bake tests, install the `bake` extra alongside it:
+This pulls in `black`, `ruff`, `build`, `pytest`, `pytest-cookies`,
+`coverage`, and `twine`. To also run the toggle-on bake tests, install the
+`bake` extra alongside it:
 
 ```bash
 pip install -e ".[dev,bake]"
@@ -25,31 +26,40 @@ isn't enough. Each bake test still `importorskip`s the package it needs, so a
 
 ## Test layout
 
+Always run pytest as a module, from the repository root:
+
 ```bash
-pytest
+python -m pytest
 ```
 
-runs the offline suites: `tests/unit_tests` and `tests/integration_tests`.
-The integration tests depend on django-simple-deploy's own test harness; when
+A bare `pytest` can pick up a different interpreter and a different config
+file; a module run uses this interpreter, and `testpaths` keeps collection
+inside `tests/`. The run prints a `dsd-cloudron test tiers:` line naming any
+tier that was skipped, so a green run never hides one.
+
+`python -m pytest` runs the offline suites - `tests/unit_tests`,
+`tests/integration_tests`, `tests/bake_tests`, and `tests/build_tests`. The
+integration tests depend on django-simple-deploy's own test harness; when
 that harness isn't importable, `tests/conftest.py` skips collecting them
-rather than erroring, so a bare `pytest` run still passes in a minimal
-checkout. The bake tests in `tests/bake_tests` are skipped the same way when
-the `bake` extra isn't installed.
+rather than erroring, so a bare run still passes in a minimal checkout. The
+bake tests in `tests/bake_tests` are skipped the same way when
+`pytest-cookies` (the `dev` extra) isn't installed.
 
 `tests/e2e_tests` performs a real deployment against a live Cloudron server
 and is excluded from collection entirely (`collect_ignore` in
-`tests/conftest.py`). Run it deliberately, with real platform credentials,
-not as part of routine development:
+`tests/conftest.py`). Run it deliberately, with `cloudron login` done and the
+target subdomain in `CLOUDRON_E2E_LOCATION`, not as part of routine
+development:
 
 ```bash
-pytest tests/e2e_tests
+CLOUDRON_E2E_LOCATION=dsd-e2e python -m pytest tests/e2e_tests
 ```
 
 To run a single file or test:
 
 ```bash
-pytest tests/unit_tests/test_render_start_sh.py
-pytest tests/unit_tests/test_render_start_sh.py::test_chown_and_exec_supervisord
+python -m pytest tests/unit_tests/test_render_start_sh.py
+python -m pytest tests/unit_tests/test_render_start_sh.py::test_chown_and_exec_supervisord
 ```
 
 ## Formatting

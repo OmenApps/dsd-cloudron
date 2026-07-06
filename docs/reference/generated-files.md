@@ -18,15 +18,18 @@ Cloudron's package manifest, read by `cloudron install` and
   unless `--no-sendmail`, and `oidc` when `--sso`.
 
 `memoryLimit`
-: From `--memory-limit`. Default `1073741824` (about 1 GB).
+: From `--memory-limit`. Default `1073741824` (about 1 GB), raised to
+  `1610612736` (about 1.5 GB) when `--wagtail` is passed without an explicit
+  `--memory-limit`.
 
 `httpPort`
 : The port the app listens on inside the container. The platform proxies
   HTTPS traffic to it and terminates TLS itself.
 
 `healthCheckPath`
-: From `--health-check-path`. Default `/`. Must return a 2xx response or
-  install/update fails its health check.
+: From `--health-check-path`. Default `/` on a retrofit; a project scaffolded
+  with `dsd-cloudron new` defaults it to `/healthz/` (the scaffold ships that
+  view). Must return a 2xx response or install/update fails its health check.
 
 `author`
 : Required by Cloudron's manifest schema (at least 2 characters);
@@ -38,22 +41,54 @@ Cloudron's package manifest, read by `cloudron install` and
   user through OIDC. What actually turns SSO on is the conditional `oidc`
   addon entry above; see {doc}`cloudron-addons`.
 
+`id`, `title`, `version`
+: The app's reverse-DNS id (from `--app-id`), its display title (derived from
+  your project name), and its version.
+
+`description`, `tagline`
+: Short strings Cloudron's schema requires (`Deployed with dsd-cloudron.` and
+  `A Django application on Cloudron.`); edit them before publishing to a store.
+
+`checklist`, `postInstallMessage`
+: What Cloudron shows the operator after install. The checklist carries a
+  `change-default-password` reminder; the post-install message points at the
+  generated `admin` password (`/app/data/.initial_admin_password`, read during
+  the first-boot window) and explains sign-in both with and without `--sso`.
+
+`manifestVersion`
+: Always `2` - the manifest schema version dsd-cloudron targets.
+
+`minBoxVersion`
+: Always `8.0.0`. Cloudron refuses to install the app on an older box, since
+  dsd-cloudron's addon and env-var surface is verified against Cloudron 8.x - so
+  a materially older server is rejected up front rather than failing partway
+  through a deploy.
+
 ## `<project>/cloudron_settings.py`
 
 The Django settings glue. The whole module body is gated on
 `os.environ.get("CLOUDRON_APP_ORIGIN")`, so it is inert during local
 development and during the image build - neither has that variable set -
-and only takes effect once the container is running on Cloudron.
+and only takes effect once the container is running on Cloudron. As a safety
+net, if the app is ever started from the Cloudron image - marked by a baked-in
+`DSD_CLOUDRON_IMAGE` env var the Dockerfile sets - without `CLOUDRON_APP_ORIGIN`,
+the settings raise and refuse to boot rather than fall back to insecure
+development defaults (`DEBUG` on, `ALLOWED_HOSTS` `["*"]`, a throwaway
+`SECRET_KEY`). A local run, which has neither variable, stays inert as before.
 
 Inside the gate it sets `DEBUG`, `SECRET_KEY`, `ALLOWED_HOSTS`,
 `CSRF_TRUSTED_ORIGINS`, the HTTPS/proxy and cookie settings - including
-`SECURE_SSL_REDIRECT` and a conservative one-hour `SECURE_HSTS_SECONDS` - and
-a PostgreSQL `DATABASES` block (always); a Redis `CACHES` block (when Redis
-is enabled); `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` (when Celery
-is enabled); an SMTP `EMAIL_BACKEND` (when sendmail is enabled); and a
+`SECURE_SSL_REDIRECT` and a conservative one-hour `SECURE_HSTS_SECONDS` - the
+static and media roots (`STATIC_ROOT` under `/run/<project>/static`,
+`MEDIA_ROOT` under `/app/data/media`, which nginx serves) and a PostgreSQL
+`DATABASES` block with `CONN_MAX_AGE` (always); a Redis `CACHES` block (when
+Redis is enabled); `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` (when Celery
+is enabled); an SMTP `EMAIL_BACKEND` (when sendmail is enabled); a
 `SOCIALACCOUNT_PROVIDERS` block for the allauth `openid_connect` provider
-(when SSO is enabled). On a retrofit `--sso` it also points `ACCOUNT_ADAPTER`
-and `SOCIALACCOUNT_ADAPTER` at the shipped `cloudron_adapters.py` (see below).
+(when SSO is enabled); and, with `--wagtail`, `WAGTAILADMIN_BASE_URL` plus a
+database search-backend override. On a retrofit `--sso` it also points
+`ACCOUNT_ADAPTER` and `SOCIALACCOUNT_ADAPTER` at the shipped
+`cloudron_adapters.py` (see below).
 See {doc}`cloudron-addons` for exactly which `CLOUDRON_*` variables each block
 reads.
 
@@ -143,3 +178,12 @@ instead, so this file is retrofit-only.
 `README-cloudron.md`
 : A per-project copy of this control-surface summary, written into the
   generated project itself.
+
+## `CLOUDRON_NEXT_STEPS.md` (retrofit only)
+
+Written into the project root by a `manage.py deploy` retrofit - not by the
+packaging core, and not by `dsd-cloudron new` - this is the operator hand-off:
+the concrete next steps to finish the deploy, including the exact
+`INSTALLED_APPS`/`MIDDLEWARE`/`urls.py` wiring block to paste when you deployed
+with `--sso`, and the install or update commands to run. It is regenerated on
+each deploy, so it is safe to delete once you have acted on it.

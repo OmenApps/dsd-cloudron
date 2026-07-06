@@ -4,7 +4,7 @@
 
 Initial release.
 
-- Requires Python 3.11+ and Django 4.2+.
+- Requires Python 3.11+, Django 4.2+, and django-simple-deploy 1.4+.
 - Retrofit: `manage.py deploy` configures an existing Django project for Cloudron.
 - Greenfield: `dsd-cloudron new` scaffolds a Cloudron-ready Django project.
 - Batteries-included artifact set: PostgreSQL, Redis, Celery, sendmail, OIDC SSO,

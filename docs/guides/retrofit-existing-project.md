@@ -66,9 +66,11 @@ so they stay opt-in:
 Each deploy writes the Cloudron manifest, Dockerfile, `start.sh`,
 supervisor configs, and nginx config, then appends a guarded settings
 block that imports the Cloudron-specific Django settings. It also adds
-the packages your configuration needs - `gunicorn` and `psycopg[binary]`
-always, plus `django-redis`, `celery[redis]`, or
-`django-allauth[mfa,socialaccount]` when the matching flag is set.
+the packages your configuration needs: `gunicorn` and `psycopg[binary]`
+(the driver is skipped if your project already depends on a Postgres
+driver - `psycopg`, `psycopg2`, or `psycopg2-binary`), plus `django-redis`,
+`celery[redis]`, or `django-allauth[mfa,socialaccount]` when the matching
+flag is set. A package your project already pins is never added twice.
 {doc}`/reference/generated-files` describes each artifact in detail.
 
 ## Dependency managers
@@ -104,7 +106,10 @@ How an existing settings block is handled depends on how you re-run:
 
 Rendered artifacts are skip-if-present: an existing `CloudronManifest.json`
 or `Dockerfile` is left alone unless you pass `--force-overwrite`, which
-regenerates them from your current flags.
+regenerates them from your current flags. For a reviewable middle ground -
+re-render the deployed configuration with a diff and a prompt per file instead
+of the blunt clobber - pass `--reconfigure` (with the same stack toggles you
+deployed with); see {doc}`operating-and-updating`.
 
 ## Other flags
 
@@ -113,7 +118,8 @@ regenerates them from your current flags.
   from your project name.
 
 `--memory-limit`
-: Memory limit in bytes. Defaults to 1073741824 (about 1 GB).
+: Memory limit in bytes. Defaults to 1073741824 (about 1 GB), or about 1.5 GB
+  with `--wagtail`. An explicit value always wins.
 
 `--health-check-path`
 : Path Cloudron polls for a 2xx response. Defaults to `/`; point it at a
@@ -129,5 +135,16 @@ regenerates them from your current flags.
 `--force-overwrite`
 : Regenerate artifacts that already exist, and replace an existing Cloudron
   settings block without prompting.
+
+`--reconfigure`
+: Re-render the artifacts of the configuration you already deployed, with a
+  diff and a prompt before overwriting each file, instead of skip-if-present or
+  `--force-overwrite`. Pass the same stack toggles you deployed with. See
+  {doc}`operating-and-updating`.
+
+`--wagtail`
+: Configure an existing Wagtail project for Cloudron - sets
+  `WAGTAILADMIN_BASE_URL`, forces the database search backend, and raises the
+  default memory limit. See {doc}`deploy-wagtail-project`.
 
 See the CLI reference for the complete list with full descriptions.

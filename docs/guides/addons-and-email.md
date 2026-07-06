@@ -58,9 +58,10 @@ to configure on the addon itself; `cloudron email` on the server controls
 the relay's outbound settings if you need to adjust those.
 
 If you turn sendmail off, none of this block is rendered, and Django
-falls back to whatever `EMAIL_BACKEND` your own settings define (the
-console backend, by default, which only logs messages instead of sending
-them).
+falls back to whatever `EMAIL_BACKEND` your own settings define. Django's
+built-in default is the SMTP backend aimed at `localhost:25`, so unless you
+run a local relay, set an `EMAIL_BACKEND` yourself - for example the console
+backend during development, which only logs messages instead of sending them.
 
 ## Sizing and identity flags
 
