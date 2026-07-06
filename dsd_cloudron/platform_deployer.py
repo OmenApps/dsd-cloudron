@@ -81,6 +81,7 @@ class PlatformDeployer:
             self._reconfigure()
             return
         self._check_health_check_path()
+        self._check_wagtail_flag()
         # render_all is not transactional and _add_celery_app/_modify_settings
         # edit files in place, so a filesystem error mid-write would otherwise
         # surface as a raw traceback with the project left partially modified.
@@ -217,6 +218,19 @@ class PlatformDeployer:
             plugin_utils.write_output(platform_msgs.health_check_path_unresolved(path))
         except Exception:
             return
+
+    def _check_wagtail_flag(self):
+        # Best-effort, non-blocking: core detects a split-settings Wagtail project and
+        # sets dsd_config.wagtail_project. If it did but --wagtail was not passed, the
+        # Wagtail glue is skipped and the deploy is silently half-configured, so warn.
+        # getattr-guarded because an older core may not set the attribute at all. This
+        # only warns; the deploy proceeds either way, since the operator may have
+        # configured Wagtail for Cloudron by hand.
+        if (
+            getattr(dsd_config, "wagtail_project", False)
+            and not plugin_config.enable_wagtail
+        ):
+            plugin_utils.write_output(platform_msgs.wagtail_project_without_flag())
 
     # --- Artifact rendering and project edits ---
 

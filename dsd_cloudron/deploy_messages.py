@@ -70,6 +70,26 @@ def health_check_path_unresolved(path):
     )
 
 
+def wagtail_project_without_flag():
+    """Warning when a Wagtail project is deployed without --wagtail.
+
+    Core detects the split-settings Wagtail layout and sets dsd_config.wagtail_project.
+    Without --wagtail the deploy still pins the settings module, but it skips the
+    Wagtail glue (WAGTAILADMIN_BASE_URL, the database search backend, the raised memory
+    default), so the admin would build URLs against the wrong origin and a search
+    backend Cloudron cannot provide would fail. Best-effort and non-blocking: the
+    operator may have configured Wagtail themselves, so warn rather than refuse.
+    """
+    return (
+        "\nWarning: this looks like a Wagtail project (split settings), but --wagtail "
+        "was not passed, so the Wagtail configuration was skipped: WAGTAILADMIN_BASE_URL "
+        "is unset, the search backend is left as your project configured it (an "
+        "Elasticsearch or OpenSearch backend would fail on Cloudron), and the memory "
+        "limit stays at the plain default. Re-run with --wagtail if you want it, or "
+        "ignore this if you configured Wagtail for Cloudron yourself.\n"
+    )
+
+
 def partial_write_failed(error):
     """Abort message when writing an artifact into the project fails midway.
 
@@ -244,8 +264,10 @@ def followup_notes(config):
             "backend that Cloudron does not provide. That database backend needs "
             "django.contrib.postgres in your INSTALLED_APPS; the plugin does not edit "
             "your settings.py, so add it yourself. If your site already has content, "
-            "run `python manage.py update_index` once after the first deploy so search "
-            "results are populated. Uploaded images and documents and their cached "
+            "run `cloudron exec --app <subdomain> -- python3 /app/code/manage.py "
+            "update_index` once after the first deploy (it targets the Cloudron "
+            "database, not your local one) so search results are populated. Uploaded "
+            "images and documents and their cached "
             "renditions write to /app/data/media, so they persist and are backed up "
             'across updates. The health check stays "/": a stock Wagtail site serves '
             "its home page (a 200) there, so no health view is needed by default. Sign "
@@ -262,24 +284,27 @@ def followup_notes(config):
             "    WAGTAIL_CONTENT_LANGUAGES = LANGUAGES\n"
             "    # settings.py - add to INSTALLED_APPS:\n"
             '    "wagtail_localize",\n'
-            '    "wagtail_localize.locales",  # replaces "wagtail.locales"\n'
+            '    "wagtail_localize.locales",  # use INSTEAD of "wagtail.locales" (remove that)\n'
             "    # settings.py - add to MIDDLEWARE, after SessionMiddleware and before\n"
             "    # CommonMiddleware:\n"
             '    "django.middleware.locale.LocaleMiddleware",\n'
             "    # urls.py - DELETE the stock non-prefixed line\n"
             '    #     path("", include(wagtail_urls))\n'
-            "    # from urlpatterns, then add the i18n-wrapped form (keep admin/,\n"
-            "    # documents/, and search/ ABOVE it and OUTSIDE i18n_patterns).\n"
+            "    # from urlpatterns, then add the i18n-wrapped form. Keep admin/ and\n"
+            "    # documents/ ABOVE it and OUTSIDE i18n_patterns; move any search/ route\n"
+            "    # INSIDE i18n_patterns (above the catch-all) so it is translated too.\n"
             '    # prefix_default_language=False keeps "/" serving your default\n'
             '    # language (a 200), so the health check can stay "/" and you need\n'
             "    # no health view:\n"
             "    from django.conf.urls.i18n import i18n_patterns\n"
-            "    from wagtail import urls as wagtail_urls\n"
+            "    from wagtail import urls as wagtail_urls  # if not already imported\n"
             "    urlpatterns += i18n_patterns(\n"
+            "        # keep your existing search/ route here, above the catch-all\n"
             '        path("", include(wagtail_urls)), prefix_default_language=False\n'
             "    )\n"
-            "    # Then create a Locale record for each non-default language (Wagtail\n"
-            "    # admin, Settings, Locales) or /es/ will 404.\n"
+            "    # Then run `python manage.py migrate` to create wagtail-localize's\n"
+            "    # tables, and create a Locale record for each non-default language\n"
+            "    # (Wagtail admin, Settings, Locales) or /es/ will 404.\n"
             "\n"
             "    # If instead you prefix EVERY language (prefix_default_language=True,\n"
             '    # the Django default), "/" becomes a 302 to "/en/" and fails the\n'
@@ -320,7 +345,8 @@ def changes_summary(config, added_requirements):
     if config.enable_wagtail:
         lines.append(
             "- Wagtail: added WAGTAILADMIN_BASE_URL and the database search-backend "
-            "override to cloudron_settings.py, and raised the default memoryLimit. The "
+            "override to cloudron_settings.py, and raised the default memoryLimit "
+            "(an explicit --memory-limit overrides it). The "
             'health check stays "/" (a stock Wagtail site answers there). You add '
             "django.contrib.postgres to INSTALLED_APPS yourself; the optional "
             "multilingual wiring and the matching /healthz/ health view are in the "

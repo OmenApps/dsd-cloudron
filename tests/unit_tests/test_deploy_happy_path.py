@@ -234,3 +234,35 @@ def test_deploy_reconfigure_aborts_on_a_wrong_shape_manifest(monkeypatch, tmp_pa
 
     with pytest.raises(pd.DSDCommandError):
         PlatformDeployer().deploy()
+
+
+def test_wagtail_flag_warns_when_project_detected_without_flag(monkeypatch):
+    # Core sets dsd_config.wagtail_project when it finds the split-settings layout.
+    # If it did but --wagtail was not passed, the deploy is half-configured, so
+    # _check_wagtail_flag warns (best-effort, non-blocking).
+    written = []
+    monkeypatch.setattr(pd.plugin_utils, "write_output", written.append)
+    dsd_config.wagtail_project = True
+    plugin_config.enable_wagtail = False
+    PlatformDeployer()._check_wagtail_flag()
+    assert any("--wagtail" in m and "was not passed" in m for m in written)
+
+
+def test_wagtail_flag_silent_when_flag_passed(monkeypatch):
+    written = []
+    monkeypatch.setattr(pd.plugin_utils, "write_output", written.append)
+    dsd_config.wagtail_project = True
+    plugin_config.enable_wagtail = True
+    PlatformDeployer()._check_wagtail_flag()
+    assert written == []
+
+
+def test_wagtail_flag_silent_when_not_a_wagtail_project(monkeypatch):
+    # getattr-guarded: no wagtail_project signal (or an older core that never sets it)
+    # means no warning, even without the flag.
+    written = []
+    monkeypatch.setattr(pd.plugin_utils, "write_output", written.append)
+    dsd_config.wagtail_project = False
+    plugin_config.enable_wagtail = False
+    PlatformDeployer()._check_wagtail_flag()
+    assert written == []

@@ -35,6 +35,18 @@ def test_readme_has_wagtail_section():
     assert "Wagtail on Cloudron" not in packaging.render_readme(_cfg())
 
 
+def test_wagtail_flag_blast_radius_excludes_runtime_files():
+    # The --wagtail flag's blast radius is exactly cloudron_settings.py, the manifest,
+    # and the README. The runtime scripts must render byte-identically with and
+    # without it, so a future edit that accidentally branched one of them on
+    # enable_wagtail fails here (mirroring test_invariants.py's per-flag isolation).
+    plain = _cfg()
+    wag = _cfg(enable_wagtail=True)
+    assert packaging.render_dockerfile(plain) == packaging.render_dockerfile(wag)
+    assert packaging.render_nginx_conf(plain) == packaging.render_nginx_conf(wag)
+    assert packaging.render_start_sh(plain) == packaging.render_start_sh(wag)
+
+
 def test_wagtail_and_celery_coexist():
     # The plan requires --wagtail --celery to work together. At the settings level
     # both blocks must render: the Wagtail glue and the Celery broker. (The container

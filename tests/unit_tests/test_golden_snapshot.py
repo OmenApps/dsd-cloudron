@@ -98,6 +98,16 @@ CASES = [
         EXPECTED / "cloudron_settings.py",
         id="default-settings",
     ),
+    # The plain default README (enable_sso=False, enable_wagtail=False). This is the
+    # offline byte guard on the newline-neutral {% if enable_wagtail %} insertion: it
+    # is the false-both path, and the only other place its exact bytes are pinned is
+    # the integration tier (skipped when the harness is absent). Reads the shared
+    # integration reference so there is one source of truth checked both ways.
+    pytest.param(
+        lambda: render_readme(_default_config()),
+        REFERENCE / "README-cloudron.md",
+        id="default-readme",
+    ),
     pytest.param(
         lambda: render_celery_app(_default_config()),
         EXPECTED / "celery.py",

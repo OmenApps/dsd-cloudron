@@ -63,6 +63,17 @@ def test_followup_notes_wagtail_block():
     # INSTALLED_APPS, and the plugin does not edit settings.py, so the note must
     # hand the operator that step (a validated Wagtail requirement).
     assert "django.contrib.postgres" in notes
+    # Pin the safety-critical code line. The note discusses both =False (recommended)
+    # and =True (the alternative that breaks the health check) in prose, so a
+    # transcription slip that flipped the actual code line to =True would still pass
+    # every substring check above.
+    assert "include(wagtail_urls)), prefix_default_language=False" in notes
+    # update_index must run against the Cloudron database (not the operator's local
+    # one), so the printed command is wrapped in cloudron exec.
+    assert "cloudron exec" in notes
+    # wagtail-localize ships models, so the multilingual wiring needs a migrate step,
+    # like the SSO wiring block.
+    assert "migrate" in notes
 
 
 def test_followup_notes_no_wagtail_by_default():
@@ -72,4 +83,9 @@ def test_followup_notes_no_wagtail_by_default():
 def test_changes_summary_mentions_wagtail():
     summary = dm.changes_summary(_config(enable_wagtail=True), [])
     assert "Wagtail" in summary
+    # Pin the load-bearing claims, not just the word "Wagtail", so a future edit
+    # cannot silently drop them while the word survives.
+    assert "WAGTAILADMIN_BASE_URL" in summary
+    assert "memoryLimit" in summary
+    assert "django.contrib.postgres" in summary
     assert "Wagtail" not in dm.changes_summary(_config(), [])

@@ -99,9 +99,9 @@ renditions survive `cloudron update` and are included in backups.
 ## Multilingual sites
 
 Multilingual wiring is an explicit opt-in - the plugin never touches your
-`settings.py` or `urls.py`, so these edits are yours. The same block is written to
-`CLOUDRON_NEXT_STEPS.md` next to your project after each deploy, so the guide and
-the printed steps cannot drift.
+`settings.py` or `urls.py`, so these edits are yours. The deploy also mirrors these
+steps into `CLOUDRON_NEXT_STEPS.md` next to your project, so you have them after the
+output scrolls away.
 
 Install `wagtail-localize`, then in `settings.py`:
 
@@ -115,7 +115,7 @@ WAGTAIL_CONTENT_LANGUAGES = LANGUAGES
 INSTALLED_APPS = [
     # ...
     "wagtail_localize",
-    "wagtail_localize.locales",  # replaces "wagtail.locales"
+    "wagtail_localize.locales",  # use instead of "wagtail.locales" - remove that one
 ]
 
 # after SessionMiddleware and before CommonMiddleware:
@@ -126,15 +126,17 @@ MIDDLEWARE = [
 ```
 
 In `urls.py`, DELETE the stock non-prefixed catch-all
-`path("", include(wagtail_urls))` and replace it with the `i18n_patterns` form,
-keeping `admin/`, `documents/`, and `search/` above it and *outside*
-`i18n_patterns`:
+`path("", include(wagtail_urls))` and replace it with the `i18n_patterns` form. Keep
+`admin/` and `documents/` above it and *outside* `i18n_patterns`; move any `search/`
+route *inside* `i18n_patterns` (above the catch-all) so it is translated per language
+too, matching Wagtail's own i18n layout:
 
 ```python
 from django.conf.urls.i18n import i18n_patterns
-from wagtail import urls as wagtail_urls
+from wagtail import urls as wagtail_urls  # if not already imported
 
 urlpatterns += i18n_patterns(
+    # keep your existing search/ route here, above the catch-all
     path("", include(wagtail_urls)), prefix_default_language=False
 )
 ```
@@ -180,6 +182,12 @@ A stock `wagtail start` project uses a settings package whose `wsgi.py`,
 dsd-cloudron pins `DJANGO_SETTINGS_MODULE=blog.settings.production` in the
 container's `start.sh`. So gunicorn, the `migrate`/`collectstatic` calls, and
 celery all load the gated production settings and `DEBUG=False` holds.
+
+django-simple-deploy detects this split-settings layout on its own, so the
+settings-module pin happens whether or not you pass `--wagtail`. The Wagtail glue
+(`WAGTAILADMIN_BASE_URL`, the database search backend, the raised memory limit) does
+*not* - it needs the flag. Deploy a Wagtail project without `--wagtail` and the
+deploy warns you it was skipped; re-run with the flag to apply it.
 
 Keep your `settings/production.py` deploy-ready: in particular, it should not
 hard-require at import time an environment variable that only the Cloudron gate
