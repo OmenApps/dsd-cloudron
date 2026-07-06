@@ -2,7 +2,7 @@
 
 project = "dsd-cloudron"
 author = "Jack Linke"
-release = "0.1.0"
+release = "2026.7.1"
 
 extensions = [
     "myst_parser",
