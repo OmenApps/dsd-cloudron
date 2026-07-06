@@ -7,10 +7,6 @@ the plugin installed, then these tests diff the generated artifacts against
 reference_files/.
 """
 
-from pathlib import Path
-
-import pytest
-
 from tests.integration_tests.utils import it_helper_functions as hf
 from tests.integration_tests.conftest import (
     tmp_project,

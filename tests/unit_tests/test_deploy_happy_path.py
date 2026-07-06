@@ -278,8 +278,6 @@ def test_deploy_reconfigure_preserves_wagtail_block(monkeypatch, tmp_path):
 def test_deploy_reconfigure_aborts_on_a_wrong_shape_manifest(monkeypatch, tmp_path):
     # A valid-JSON-but-wrong-shape manifest (top-level array) must abort as a clean
     # DSDCommandError, not a raw AttributeError from the sizing read-back or the guard.
-    import json
-
     import pytest
 
     from dsd_cloudron.packaging import CloudronAppConfig, render_all

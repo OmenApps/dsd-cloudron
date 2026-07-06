@@ -113,6 +113,36 @@ exclude_lines = [
     "if __name__ == .__main__.:",
 ]
 
+[tool.ruff]
+# Ruff (and the VSCode Ruff extension's language server) walks the tree and parses
+# every pyproject.toml as a candidate config file. The cookiecutter template's
+# pyproject.toml embeds Jinja such as {% if cookiecutter.use_redis == "yes" %},
+# which is not valid TOML, so Ruff aborts with a parse error. Exclude the template
+# tree so Ruff never descends into it. The reference_files are byte-exact render
+# output, not source, so they are excluded here the same way black excludes them.
+extend-exclude = [
+    "dsd_cloudron/project_template",
+    "tests/integration_tests/reference_files",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The integration tests import shared fixtures (tmp_project, pkg_manager,
+# dsd_version) from django-simple-deploy core's conftest - the canonical DSD plugin
+# pattern, matching every reference plugin. Ruff reads those imports as unused
+# (F401) and sees each fixture parameter as redefining the import (F811); both are
+# inherent to the fixture pattern rather than real defects.
+"tests/integration_tests/*.py" = ["F401", "F811"]
+
+[tool.pyright]
+# The project_template tree is a cookiecutter template: its .py files embed Jinja
+# tags such as {% if cookiecutter.use_sso == "yes" %} and {{ cookiecutter.project_slug }},
+# which are not valid Python. Keep the type checker (and VSCode's Pylance, which reads
+# this table) from parsing them, otherwise the whole template reads as syntax errors.
+# `exclude` drops them from the analyzed set; `ignore` also suppresses diagnostics when
+# such a file is opened directly in the editor.
+exclude = ["dsd_cloudron/project_template"]
+ignore = ["dsd_cloudron/project_template"]
+
 [tool.black]
 # Pin the formatting targets to the supported interpreters. Without this black
 # infers the range from requires-python (>=3.9) up through its own newest known

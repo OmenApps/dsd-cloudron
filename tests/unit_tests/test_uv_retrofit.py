@@ -12,7 +12,6 @@ import types
 import pytest
 
 from dsd_cloudron import uv_retrofit
-from dsd_cloudron import deploy_messages as platform_msgs
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
 from django_simple_deploy.management.commands.utils.command_errors import (
     DSDCommandError,
@@ -192,7 +191,7 @@ def test_stage_requirements_skipped_when_unit_testing(monkeypatch):
     monkeypatch.setattr(
         uv_retrofit.plugin_utils, "run_quick_command", lambda cmd: calls.append(cmd)
     )
-    uv_retrofit._stage_requirements(tmp_path_placeholder := object())
+    uv_retrofit._stage_requirements(object())
     assert calls == []
 
 
