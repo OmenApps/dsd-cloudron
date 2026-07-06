@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
 ]
 keywords = ["django", "deployment", "cloudron"]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "django>=4.2",
     "pluggy>=1.5.0",
@@ -34,9 +34,9 @@ dependencies = [
 dev = [
     "black>=24.1.0",
     "build>=1.2.1",
-    # The [toml] extra pulls in the TOML parser coverage needs to read its config
-    # from this file on the interpreters below 3.11 (3.11+ read it natively).
-    "coverage[toml]>=7.4",
+    # Python 3.11+ reads TOML natively, so coverage picks up its config from this
+    # file without the extra TOML parser the [toml] extra would otherwise pull in.
+    "coverage>=7.4",
     "pytest>=8.3.0",
     "pytest-cookies>=0.7.0",
     "pytest-cov>=5.0",
@@ -145,10 +145,10 @@ ignore = ["dsd_cloudron/project_template"]
 
 [tool.black]
 # Pin the formatting targets to the supported interpreters. Without this black
-# infers the range from requires-python (>=3.9) up through its own newest known
+# infers the range from requires-python (>=3.11) up through its own newest known
 # Python, which both prints an AST-safety warning on older interpreters and lets
 # formatting drift between CI matrix legs.
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py311", "py312"]
 # The golden snapshot fixtures and the integration reference files are byte-exact
 # render output, not source code; black must not reformat them or they stop
 # matching the render functions and the deployed artifacts.

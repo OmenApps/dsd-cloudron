@@ -28,17 +28,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pin Django per interpreter so every version the classifiers advertise
-        # (4.2, 5.2, 6.0) has a durable leg, rather than leaving Django to whatever
-        # the resolver floats to. The 3.11 leg floats to cover the latest release
-        # that still supports an older interpreter.
+        # Pin Django so every version the classifiers advertise (4.2, 5.2, 6.0)
+        # has a durable leg, rather than leaving Django to whatever the resolver
+        # floats to. 3.11 is the oldest supported interpreter; its float leg covers
+        # the latest release that still supports it. Django 6.0 needs 3.12+, so it
+        # rides the 3.12 leg.
         include:
-          - python-version: "3.9"
+          - python-version: "3.11"
             django: "Django>=4.2,<4.3"
-          - python-version: "3.10"
-            django: "Django>=5.2,<5.3"
           - python-version: "3.11"
             django: ""
+          - python-version: "3.12"
+            django: "Django>=5.2,<5.3"
           - python-version: "3.12"
             django: "Django>=6.0,<6.1"
     steps:

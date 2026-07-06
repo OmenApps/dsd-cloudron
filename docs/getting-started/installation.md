@@ -40,7 +40,7 @@ session rather than taking an API token on the command line.
 
 ## Requirements
 
-`dsd-cloudron` supports Python 3.9+ and Django 4.2+.
+`dsd-cloudron` supports Python 3.11+ and Django 4.2+.
 
 With the package installed and `cloudron` authenticated, scaffold a new
 project (see {doc}`quickstart`) or configure an existing one for

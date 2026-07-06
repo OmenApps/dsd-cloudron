@@ -180,12 +180,8 @@ def _write(path, contents, result, force, executable=False):
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     # Force LF + UTF-8 so artifacts generated on Windows still run inside the
-    # Linux container (CRLF in start.sh/Dockerfile breaks the shebang). The
-    # open() form is used instead of Path.write_text(newline=...) because the
-    # newline kwarg only exists on write_text since Python 3.10 and the floor
-    # here is 3.9.
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write(contents)
+    # Linux container (CRLF in start.sh/Dockerfile breaks the shebang).
+    path.write_text(contents, encoding="utf-8", newline="\n")
     if executable:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     result.written.append(path)
