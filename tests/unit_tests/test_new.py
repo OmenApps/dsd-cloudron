@@ -80,6 +80,16 @@ def test_leading_or_trailing_underscore_name_is_rejected():
             new.build_context(args)
 
 
+def test_edge_dash_name_slugs_to_edge_underscore_and_is_rejected():
+    # A trailing dash passes the raw-character check (dashes are allowed) but _slugify
+    # turns it into a trailing underscore, which hyphenates back to an invalid app_id
+    # label. This is the input that actually reaches the app_id underscore guard - a
+    # raw "foo_" is stopped earlier by the character check, which forbids underscores.
+    args = new.parse_args(["new", "foo-"])  # -> slug "foo_"
+    with pytest.raises(SystemExit):
+        new.build_context(args)
+
+
 def test_no_redis_and_no_sendmail_flags_disable_infra_toggles():
     # The default-ON toggles flip off via their --no-<x> form; assert the success
     # case directly (the guard test only exercises --no-redis through rejection).
@@ -141,6 +151,17 @@ def test_main_returns_zero_and_prints_path(monkeypatch, capsys):
     assert "/tmp/my_shop" in capsys.readouterr().out
 
 
+def test_main_dispatches_the_reconfigure_subcommand(monkeypatch):
+    # The reconfigure subcommand must route through run_reconfigure and return 0; stub
+    # run_reconfigure (its own path is covered above) to test main's dispatch in isolation.
+    calls = []
+    monkeypatch.setattr(new, "run_reconfigure", lambda args: calls.append(args))
+    result = new.main(["reconfigure", "--project-dir", "/tmp/whatever"])
+    assert result == 0
+    assert len(calls) == 1
+    assert calls[0].command == "reconfigure"
+
+
 def test_scaffold_existing_output_dir_fails_cleanly(monkeypatch):
     # cookiecutter raises OutputDirExistsException on a re-run; scaffold must turn
     # that into a clean SystemExit rather than a raw traceback.
@@ -148,6 +169,21 @@ def test_scaffold_existing_output_dir_fails_cleanly(monkeypatch):
         raise OutputDirExistsException('"/tmp/my_shop" already exists')
 
     monkeypatch.setattr(new, "cookiecutter", _raise)
+    args = new.parse_args(["new", "My Shop", "--output-dir", "/tmp"])
+    with pytest.raises(SystemExit):
+        new.scaffold(args)
+
+
+def test_scaffold_render_failure_fails_cleanly_and_names_the_dir(monkeypatch):
+    # cookiecutter wrote the skeleton, but the deploy artifacts then fail to render, so
+    # the tree is half-built. scaffold must abort cleanly and name the directory to
+    # remove rather than leave a raw traceback that also blocks a same-name retry.
+    monkeypatch.setattr(new, "cookiecutter", lambda *a, **k: "/tmp/my_shop")
+
+    def _boom(*a, **k):
+        raise RuntimeError("template kaboom")
+
+    monkeypatch.setattr(new, "render_all", _boom)
     args = new.parse_args(["new", "My Shop", "--output-dir", "/tmp"])
     with pytest.raises(SystemExit):
         new.scaffold(args)
@@ -261,6 +297,34 @@ def test_reconfigure_config_applies_sizing_overrides(tmp_path):
     assert config.enable_celery is False  # kept from the project
 
 
+def test_reconfigure_config_applies_health_check_override(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    # --health-check-path is one of the two reconfigure scalar overrides; it must reach
+    # the reconstructed config. The rendered project keeps the default "/", so overriding
+    # to a distinct path proves the override arm ran (not the reconstructed value).
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+    args = new.parse_args(
+        [
+            "reconfigure",
+            "--project-dir",
+            str(tmp_path),
+            "--health-check-path",
+            "/status/",
+        ]
+    )
+    config = new.reconfigure_config(tmp_path, args)
+    assert config.health_check_path == "/status/"
+
+
 def test_reconfigure_config_missing_manifest_fails_cleanly(tmp_path):
     args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
     with pytest.raises(SystemExit):
@@ -284,6 +348,37 @@ def test_run_reconfigure_overwrites_changed_file_on_yes(tmp_path, monkeypatch):
     args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
     new.run_reconfigure(args)
     assert "HAND EDIT" not in (tmp_path / "Dockerfile").read_text(encoding="utf-8")
+
+
+def test_run_reconfigure_aborts_cleanly_if_render_raises_reconfigure_error(
+    tmp_path, monkeypatch
+):
+    from dsd_cloudron.packaging import (
+        CloudronAppConfig,
+        ReconfigureError,
+        render_all,
+    )
+
+    # reconfigure_config already validated the on-disk state, so this catch only fires if
+    # the manifest changes underfoot between the two reads. Simulate that race and confirm
+    # run_reconfigure aborts cleanly (SystemExit) rather than surfacing a raw traceback.
+    render_all(
+        CloudronAppConfig(
+            project_name="shop",
+            app_id="com.example.shop",
+            pkg_manager="uv",
+            greenfield=True,
+        ),
+        tmp_path,
+    )
+
+    def _raise(*a, **k):
+        raise ReconfigureError("manifest changed underfoot")
+
+    monkeypatch.setattr(new, "reconfigure", _raise)
+    args = new.parse_args(["reconfigure", "--project-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        new.run_reconfigure(args)
 
 
 def test_run_reconfigure_leaves_file_on_no(tmp_path, monkeypatch, capsys):
@@ -410,6 +505,19 @@ def test_read_project_state_rejects_a_non_utf8_manifest(tmp_path):
         CloudronAppConfig(project_name="shop", app_id="com.example.shop"), tmp_path
     )
     (tmp_path / "CloudronManifest.json").write_bytes(b"\xff\xfe not utf-8")
+    with pytest.raises(SystemExit):
+        new._read_project_state(tmp_path)
+
+
+def test_read_project_state_rejects_a_non_object_manifest(tmp_path):
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    # A manifest that is valid JSON but a top-level array (not an object) must abort
+    # cleanly before the `addons` lookup below would raise a raw error on it.
+    render_all(
+        CloudronAppConfig(project_name="shop", app_id="com.example.shop"), tmp_path
+    )
+    (tmp_path / "CloudronManifest.json").write_text("[]", encoding="utf-8")
     with pytest.raises(SystemExit):
         new._read_project_state(tmp_path)
 

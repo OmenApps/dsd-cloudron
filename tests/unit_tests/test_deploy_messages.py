@@ -89,3 +89,24 @@ def test_changes_summary_mentions_wagtail():
     assert "memoryLimit" in summary
     assert "django.contrib.postgres" in summary
     assert "Wagtail" not in dm.changes_summary(_config(), [])
+
+
+def test_changes_summary_notes_generated_requirements_for_locked_managers():
+    # A poetry/pipenv retrofit generates requirements.txt from the lock for the image;
+    # the summary must say so (and tell the user to re-lock if deps changed). A uv or
+    # req_txt project adds no such note.
+    for manager in ("poetry", "pipenv"):
+        summary = dm.changes_summary(_config(pkg_manager=manager), [])
+        assert "Generated requirements.txt" in summary
+        assert manager in summary
+    assert "Generated requirements.txt" not in dm.changes_summary(_config(), [])
+
+
+def test_changes_summary_addon_line_reflects_disabled_infra():
+    # The declared-addons line is built by appending per enabled flag. With redis and
+    # sendmail off, only the always-on addons (and any others) appear - exercising the
+    # skip side of those conditionals, not just the append side the defaults cover.
+    summary = dm.changes_summary(_config(enable_redis=False, enable_sendmail=False), [])
+    assert "postgresql, localstorage" in summary
+    assert "redis" not in summary
+    assert "sendmail" not in summary

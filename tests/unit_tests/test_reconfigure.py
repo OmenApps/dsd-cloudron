@@ -135,6 +135,16 @@ def test_apply_manifest_values_rejects_a_non_dict_manifest(tmp_path):
         apply_manifest_values(_config(), manifest_path)
 
 
+def test_apply_manifest_values_rejects_unreadable_json(tmp_path):
+    # This is a fresh read (the file could change between the stack guard's read and
+    # this one), so malformed JSON must abort with a ReconfigureError rather than let a
+    # raw JSONDecodeError escape and corrupt the write-back below.
+    manifest_path = tmp_path / "CloudronManifest.json"
+    manifest_path.write_text("{ not valid json", encoding="utf-8")
+    with pytest.raises(ReconfigureError):
+        apply_manifest_values(_config(), manifest_path)
+
+
 def test_reconfigure_result_changed_reflects_overwrites_and_manifest():
     from dsd_cloudron.packaging import ReconfigureResult
 

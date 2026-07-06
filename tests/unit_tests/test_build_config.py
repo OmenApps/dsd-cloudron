@@ -124,6 +124,19 @@ def test_build_config_flat_settings_needs_no_pin():
     assert config.settings_module == "blog.settings"
 
 
+def test_build_config_settings_path_outside_root_falls_back_to_default():
+    # If core's settings_path is somehow not under project_root, relative_to raises
+    # ValueError; _build_config must fall back to the empty module (the <project>.settings
+    # default that pins nothing) rather than crash on the derivation.
+    dsd_config.local_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    plugin_config.app_id = ""
+    dsd_config.project_root = Path("/app/code")
+    dsd_config.settings_path = Path("/somewhere/else/blog/settings.py")
+    config = PlatformDeployer()._build_config()
+    assert config.settings_module == ""
+
+
 def test_build_config_wraps_value_error_as_dsd_error():
     # A non-identifier project name makes CloudronAppConfig.__post_init__ raise
     # ValueError; the deployer must translate it into a clean DSDCommandError.
@@ -184,6 +197,28 @@ def test_deploy_wraps_filesystem_error_as_dsd_error(monkeypatch, tmp_path):
     assert "disk full" in message
     assert "partially modified" in message
     assert "--force-overwrite" in message
+
+
+def test_validate_platform_reconfigure_skips_cli_and_settings_checks(monkeypatch):
+    # Reconfigure is a purely local re-render: with the unit_testing guard off it must
+    # still skip the cloudron CLI/auth checks and the settings-block prompt, setting
+    # deployed_project_name from the location for its messages. Make each skipped check
+    # raise so a regression that stopped skipping them fails loudly here.
+    dsd_config.unit_testing = False
+    dsd_config.deployed_project_name = "fallback"
+    plugin_config.reconfigure = True
+    plugin_config.location = "blog"
+
+    def _must_not_run(*a, **k):
+        raise AssertionError("reconfigure must not reach the cloudron CLI/auth checks")
+
+    monkeypatch.setattr(pd.cloudron_cli, "check_installed", _must_not_run)
+    monkeypatch.setattr(pd.cloudron_cli, "check_authenticated", _must_not_run)
+    monkeypatch.setattr(pd.plugin_utils, "check_settings", _must_not_run)
+
+    deployer = PlatformDeployer()
+    deployer._validate_platform()
+    assert deployer.deployed_project_name == "blog"
 
 
 def test_validate_platform_under_guard_sets_name():

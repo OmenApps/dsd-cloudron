@@ -105,6 +105,25 @@ def test_prepare_returns_none_without_a_git_dir(tmp_path):
     assert uv_retrofit.prepare(tmp_path) is None
 
 
+def test_prepare_falls_back_to_settings_base_dir(tmp_path, monkeypatch):
+    # The deploy-time call site passes no project_root; prepare() then reads
+    # settings.BASE_DIR (dsd_config.project_root is not set yet at pre_inspect time).
+    # Point BASE_DIR at a uv project and confirm the fallback materializes the file.
+    _make_uv_project(tmp_path)
+    dsd_config.unit_testing = False
+    monkeypatch.setattr(
+        "django.conf.settings", types.SimpleNamespace(BASE_DIR=tmp_path)
+    )
+    monkeypatch.setattr(uv_retrofit, "_run_uv_export", lambda: "django>=4.2\n")
+    monkeypatch.setattr(uv_retrofit, "_stage_requirements", lambda path: None)
+
+    message = uv_retrofit.prepare()  # no project_root -> settings.BASE_DIR
+
+    req_path = tmp_path / "requirements.txt"
+    assert req_path.read_text(encoding="utf-8") == "django>=4.2\n"
+    assert str(req_path) in message
+
+
 def test_prepare_exports_and_stages_uv_project(tmp_path, monkeypatch):
     _make_uv_project(tmp_path)
     dsd_config.unit_testing = False
@@ -150,6 +169,20 @@ def test_run_uv_export_raises_on_failure(monkeypatch):
     assert "lock is stale" in str(excinfo.value)
 
 
+def test_run_uv_export_aborts_when_uv_is_missing(monkeypatch):
+    # A missing (FileNotFoundError) or non-executable (PermissionError) uv raises
+    # OSError from run_quick_command; it must surface as a clean DSDCommandError rather
+    # than a raw traceback before core has done anything.
+    dsd_config.unit_testing = False
+
+    def raise_missing(cmd):
+        raise FileNotFoundError("uv")
+
+    monkeypatch.setattr(uv_retrofit.plugin_utils, "run_quick_command", raise_missing)
+    with pytest.raises(DSDCommandError):
+        uv_retrofit._run_uv_export()
+
+
 # --- _stage_requirements ---
 
 
@@ -176,3 +209,30 @@ def test_stage_requirements_runs_git_add(tmp_path, monkeypatch):
     assert len(calls) == 1
     assert calls[0].startswith("git add ")
     assert str(req_path) in calls[0]
+
+
+def test_stage_requirements_aborts_when_git_is_missing(tmp_path, monkeypatch):
+    # A missing or non-executable git raises OSError; abort cleanly, mirroring the
+    # export path, rather than leaking a raw traceback mid-deploy.
+    dsd_config.unit_testing = False
+
+    def raise_missing(cmd):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(uv_retrofit.plugin_utils, "run_quick_command", raise_missing)
+    with pytest.raises(DSDCommandError):
+        uv_retrofit._stage_requirements(tmp_path / "requirements.txt")
+
+
+def test_stage_requirements_raises_when_git_add_fails(tmp_path, monkeypatch):
+    # git ran but returned non-zero (e.g. not a repo); surface its stderr in a clean
+    # DSDCommandError instead of continuing past a failed stage.
+    dsd_config.unit_testing = False
+    monkeypatch.setattr(
+        uv_retrofit.plugin_utils,
+        "run_quick_command",
+        lambda cmd: _completed(returncode=1, stderr=b"not a git repository"),
+    )
+    with pytest.raises(DSDCommandError) as excinfo:
+        uv_retrofit._stage_requirements(tmp_path / "requirements.txt")
+    assert "not a git repository" in str(excinfo.value)

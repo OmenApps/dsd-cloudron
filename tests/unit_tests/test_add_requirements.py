@@ -100,6 +100,35 @@ def test_generate_requirements_file_for_locked_managers(monkeypatch, tmp_path, m
     assert called == []  # core manifest mutation not used for poetry/pipenv
 
 
+def test_generate_requirements_skips_comments_blanks_and_option_lines(
+    monkeypatch, tmp_path
+):
+    # The export can contain blank lines, comments, and pip option/editable lines
+    # (-e, --hash). Those are not package names, so the "already present" scan must
+    # skip them (never derive a bare name from them) while the export body is still
+    # written to requirements.txt verbatim.
+    dsd_config.pkg_manager = "poetry"
+    dsd_config.project_root = tmp_path
+    dsd_config.unit_testing = False
+    monkeypatch.setattr(
+        PlatformDeployer,
+        "_export_locked_requirements",
+        lambda self: "# pinned by poetry\n\n-e .\ngunicorn==22.0\n",
+    )
+    plugin_config.enable_redis = False
+    plugin_config.enable_celery = False
+    plugin_config.enable_sso = False
+    PlatformDeployer()._add_requirements()
+    lines = (tmp_path / "requirements.txt").read_text().splitlines()
+    # gunicorn is already locked, so the deploy floor is not re-appended as a bare line.
+    assert "gunicorn" not in lines
+    # psycopg was not in the export, so it is still appended.
+    assert "psycopg[binary]" in lines
+    # The comment and editable lines survive in the written body unchanged.
+    assert "# pinned by poetry" in lines
+    assert "-e ." in lines
+
+
 def test_generate_requirements_append_rule_adds_redis_transport(monkeypatch, tmp_path):
     # When Celery is on and the export already locks celery, celery[redis] is
     # skipped (bare name present), so a bare redis line is appended for the broker

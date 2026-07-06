@@ -13,5 +13,11 @@ docs/_build/
 example-cloudron-apps/
 example-dsd-plugins/
 
+# Coverage data and reports (pytest --cov / coverage run).
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Captured HTTP archives (e.g. SSO debugging) can carry tokens and cookies.
 *.har

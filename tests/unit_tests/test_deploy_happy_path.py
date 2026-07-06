@@ -8,10 +8,15 @@ unit-testing guard and asserts the deployer wiring ABOVE render_all (which
 test_render_all already covers), not merely that files exist.
 """
 
+import pytest
+
 from dsd_cloudron import platform_deployer as pd
 from dsd_cloudron.platform_deployer import PlatformDeployer
 from dsd_cloudron.plugin_config import plugin_config
 from django_simple_deploy.management.commands.utils.plugin_utils import dsd_config
+from django_simple_deploy.management.commands.utils.command_errors import (
+    DSDCommandError,
+)
 
 
 def test_deploy_composes_end_to_end(monkeypatch, tmp_path):
@@ -103,6 +108,72 @@ def test_deploy_reconfigure_reruns_artifacts_and_skips_settings(monkeypatch, tmp
     out = dsd_config.stdout.getvalue()
     assert "cloudron update" in out
     assert "No changes were made" not in out
+
+
+def test_deploy_reconfigure_tolerates_a_missing_cloudron_settings(
+    monkeypatch, tmp_path
+):
+    # Before the re-render, _reconfigure peeks at cloudron_settings.py to preserve a
+    # Wagtail block. If a user deleted that file, the read raises OSError; reconfigure
+    # must swallow it and still re-render (which recreates the file), not crash.
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    pkg = tmp_path / "blog"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    settings = pkg / "settings.py"
+    settings.write_text("SECRET_KEY = 'x'\n", encoding="utf-8")
+    render_all(
+        CloudronAppConfig(project_name="blog", app_id="com.example.blog"), tmp_path
+    )
+    (tmp_path / "blog" / "cloudron_settings.py").unlink()  # user removed it
+
+    dsd_config.unit_testing = True
+    dsd_config.local_project_name = "blog"
+    dsd_config.deployed_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    dsd_config.project_root = tmp_path
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = False
+    plugin_config.reconfigure = True
+    monkeypatch.setattr(pd.plugin_utils, "add_package", lambda name, version="": None)
+
+    PlatformDeployer().deploy()  # must not raise on the unreadable settings peek
+
+    # The re-render recreated the file it could not read.
+    assert (tmp_path / "blog" / "cloudron_settings.py").exists()
+
+
+def test_deploy_reconfigure_wraps_a_write_failure_as_dsd_error(monkeypatch, tmp_path):
+    # A disk error while re-rendering during reconfigure must abort with a clean
+    # DSDCommandError (partial_write_failed), not a raw OSError traceback.
+    from dsd_cloudron.packaging import CloudronAppConfig, render_all
+
+    pkg = tmp_path / "blog"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    settings = pkg / "settings.py"
+    settings.write_text("SECRET_KEY = 'x'\n", encoding="utf-8")
+    render_all(
+        CloudronAppConfig(project_name="blog", app_id="com.example.blog"), tmp_path
+    )
+
+    dsd_config.unit_testing = True
+    dsd_config.local_project_name = "blog"
+    dsd_config.deployed_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    dsd_config.project_root = tmp_path
+    dsd_config.settings_path = settings
+    dsd_config.automate_all = False
+    plugin_config.reconfigure = True
+
+    def _boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pd.packaging, "reconfigure", _boom)
+    with pytest.raises(DSDCommandError) as excinfo:
+        PlatformDeployer().deploy()
+    assert "disk full" in str(excinfo.value)
 
 
 def test_deploy_reconfigure_preserves_tuned_manifest_sizing(monkeypatch, tmp_path):

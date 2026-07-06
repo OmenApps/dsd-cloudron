@@ -206,3 +206,20 @@ def test_success_message_skips_next_steps_file_without_project_root(
     dsd_config.project_root = None
     _deployer()._show_success_message()
     assert not (tmp_path / "CLOUDRON_NEXT_STEPS.md").exists()
+
+
+def test_success_message_next_steps_write_failure_is_non_fatal(monkeypatch, tmp_path):
+    # The next-steps file is an optional aid written after the artifacts (and, under
+    # --automate-all, after the commit and install). A write failure there must warn
+    # and move on - not raise and look like a failed deploy - since the same notes were
+    # just printed to stdout. Point project_root at a plain file so the child-path write
+    # raises OSError (NotADirectoryError).
+    written = []
+    monkeypatch.setattr(pd.plugin_utils, "write_output", written.append)
+    not_a_dir = tmp_path / "project_root_is_a_file"
+    not_a_dir.write_text("not a directory", encoding="utf-8")
+    dsd_config.automate_all = False
+    dsd_config.unit_testing = False
+    dsd_config.project_root = not_a_dir
+    _deployer()._show_success_message()  # must not raise
+    assert any("Could not write CLOUDRON_NEXT_STEPS.md" in m for m in written)
