@@ -30,11 +30,14 @@ without a rebuild.
 
 `oidc`
 : Off by default; add it with `--sso`. The generated
-  `SOCIALACCOUNT_PROVIDERS` block reads `CLOUDRON_OIDC_ISSUER`,
+  `SOCIALACCOUNT_PROVIDERS` block reads `CLOUDRON_OIDC_DISCOVERY_URL` (the
+  OpenID Connect discovery document Cloudron publishes for the app),
   `CLOUDRON_OIDC_CLIENT_ID`, and `CLOUDRON_OIDC_CLIENT_SECRET` for the
   allauth `openid_connect` provider, plus `CLOUDRON_OIDC_PROVIDER_NAME`
-  for the display name (falls back to `Cloudron` if unset). See
-  {doc}`/guides/enable-sso`.
+  for the display name (falls back to `Cloudron` if unset). Note that any
+  Cloudron user granted access to the app is provisioned a Django account
+  on first login; the local `admin` account remains as break-glass
+  access. See {doc}`/guides/enable-sso`.
 
 `localstorage`
 : Always declared; backs the persistent `/app/data` volume. The

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -euo pipefail
 
 APP="{{ project_name }}"
 CODE=/app/code

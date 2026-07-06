@@ -8,8 +8,11 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "django>=4.2",
-    "gunicorn",
-    "psycopg[binary]",
+    # Match the retrofit's tested floors: gunicorn's is the request-smuggling fix
+    # (CVE-2024-1135); psycopg's is Django's enforced minimum for the postgresql
+    # backend (Django 6.0 requires psycopg 3.1.12+).
+    "gunicorn>=22.0",
+    "psycopg[binary]>=3.1.12",
 {% if cookiecutter.use_redis == "yes" %}    "django-redis",
 {% endif %}{% if cookiecutter.use_celery == "yes" %}    "celery[redis]",
 {% endif %}{% if cookiecutter.use_sso == "yes" %}    "django-allauth[mfa,socialaccount]",

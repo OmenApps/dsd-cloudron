@@ -74,6 +74,26 @@ reason. On a retrofit, add a view (or redirect) at `/`, or change
 `LOGIN_REDIRECT_URL` to point at wherever your app's real entry point
 is.
 
+## Migrations fail on boot
+
+**Symptom:** The app never becomes healthy, and the logs show a
+`==> MIGRATE_FAILED` line followed by the container exiting.
+
+**Cause:** `start.sh` runs `manage.py migrate` on every start, before it
+hands off to the web server. When a migration raises - a bad migration,
+a schema conflict, or a database the app cannot reach - the start script
+prints the distinct `MIGRATE_FAILED` marker to stderr and exits
+non-zero, so the container stops rather than serving against an
+half-migrated database. Cloudron then reports the install or update as
+failed.
+
+**Fix:** Read the traceback printed just above the marker in
+`cloudron logs --app <subdomain>` - it names the failing migration.
+Resolve the underlying migration or data problem, then re-run
+`cloudron update`. Use `cloudron debug --app <subdomain>` to open a
+writable shell if you need to inspect the database or run the migration
+by hand while diagnosing.
+
 ## Still stuck
 
 `cloudron logs --app <subdomain> -f` is the first thing to check for any

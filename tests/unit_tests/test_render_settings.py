@@ -94,9 +94,9 @@ def test_settings_sso_conditional():
     on = _settings(enable_sso=True)
     off = _settings(enable_sso=False)
     assert "SOCIALACCOUNT_PROVIDERS" in on
-    assert 'os.environ.get("CLOUDRON_OIDC_ISSUER")' in on
-    # server_url must be the discovery document, not the bare issuer.
-    assert "/.well-known/openid-configuration" in on
+    assert 'os.environ.get("CLOUDRON_OIDC_DISCOVERY_URL")' in on
+    # server_url is the discovery document Cloudron publishes, read directly.
+    assert '"server_url": os.environ["CLOUDRON_OIDC_DISCOVERY_URL"]' in on
     assert "SOCIALACCOUNT_PROVIDERS" not in off
 
 
@@ -364,7 +364,7 @@ def test_settings_execute_full_config(monkeypatch):
     # structure surfaces as a KeyError/AssertionError instead of shipping green.
     env = {
         **_BASE_CLOUDRON_ENV,
-        "CLOUDRON_OIDC_ISSUER": "https://login.example.com",
+        "CLOUDRON_OIDC_DISCOVERY_URL": "https://login.example.com/.well-known/openid-configuration",
         "CLOUDRON_OIDC_CLIENT_ID": "client",
         "CLOUDRON_OIDC_CLIENT_SECRET": "secret",
     }
@@ -416,7 +416,19 @@ def test_settings_inert_without_cloudron_origin(monkeypatch):
     # Off Cloudron the whole block is gated out, so no overrides leak into a
     # local dev or build environment.
     monkeypatch.delenv("CLOUDRON_APP_ORIGIN", raising=False)
+    monkeypatch.delenv("DSD_CLOUDRON_IMAGE", raising=False)
     namespace = {}
     exec(compile(_settings(), "<cloudron_settings>", "exec"), namespace)
     assert "DEBUG" not in namespace
     assert "DATABASES" not in namespace
+
+
+def test_settings_fail_closed_on_cloudron_image_without_origin(monkeypatch):
+    # On a Cloudron image the Dockerfile bakes DSD_CLOUDRON_IMAGE. If the platform
+    # ever starts the app without CLOUDRON_APP_ORIGIN, the settings must refuse to
+    # boot rather than fall back to the local-dev defaults (DEBUG on, ALLOWED_HOSTS
+    # ["*"], throwaway SECRET_KEY) - fail closed, not open.
+    monkeypatch.delenv("CLOUDRON_APP_ORIGIN", raising=False)
+    monkeypatch.setenv("DSD_CLOUDRON_IMAGE", "1")
+    with pytest.raises(RuntimeError, match="refusing to start"):
+        exec(compile(_settings(), "<cloudron_settings>", "exec"), {})

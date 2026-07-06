@@ -309,6 +309,10 @@ def render_manifest(config):
 
     manifest = {
         "manifestVersion": 2,
+        # The addon and env-var surface is verified against Cloudron 8.0.2; gate
+        # installs to that baseline so a materially older box is rejected up front
+        # rather than failing partway through a deploy.
+        "minBoxVersion": "8.0.0",
         "id": config.app_id,
         "title": config.display_title(),
         "author": config.author,
@@ -463,7 +467,7 @@ def render_cloudron_settings(config):
                 f'    SOCIALACCOUNT_ADAPTER = "{p}.cloudron_adapters.CloudronSocialAccountAdapter"\n'
             )
         blocks.append(
-            adapter_pointers + '    if os.environ.get("CLOUDRON_OIDC_ISSUER"):\n'
+            adapter_pointers + '    if os.environ.get("CLOUDRON_OIDC_DISCOVERY_URL"):\n'
             "        SOCIALACCOUNT_PROVIDERS = {\n"
             '            "openid_connect": {\n'
             '                "APPS": [\n'
@@ -472,7 +476,7 @@ def render_cloudron_settings(config):
             '                        "name": os.environ.get("CLOUDRON_OIDC_PROVIDER_NAME", "Cloudron"),\n'
             '                        "client_id": os.environ["CLOUDRON_OIDC_CLIENT_ID"],\n'
             '                        "secret": os.environ["CLOUDRON_OIDC_CLIENT_SECRET"],\n'
-            '                        "settings": {"server_url": os.environ["CLOUDRON_OIDC_ISSUER"] + "/.well-known/openid-configuration"},\n'
+            '                        "settings": {"server_url": os.environ["CLOUDRON_OIDC_DISCOVERY_URL"]},\n'
             "                    }\n"
             "                ]\n"
             "            }\n"
@@ -519,6 +523,21 @@ def render_cloudron_settings(config):
         '            print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)\n'
         "        if _code is not None:\n"
         "            exec(_code)\n"
+    )
+
+    # Fail closed on a Cloudron image whose CLOUDRON_APP_ORIGIN is somehow absent.
+    # The whole hardening block above is gated on that var; without this branch a
+    # missing origin would silently fall back to the project's local-development
+    # settings (DEBUG on, ALLOWED_HOSTS ["*"], throwaway SECRET_KEY). DSD_CLOUDRON_IMAGE
+    # is baked into the image by the generated Dockerfile and is never set in local
+    # development, so this refuses to boot in production instead of serving insecurely,
+    # while leaving local runs on their normal defaults.
+    blocks.append(
+        'elif os.environ.get("DSD_CLOUDRON_IMAGE"):\n'
+        "    raise RuntimeError(\n"
+        '        "CLOUDRON_APP_ORIGIN is unset on a Cloudron image; refusing to start "\n'
+        '        "with insecure development settings."\n'
+        "    )\n"
     )
 
     return "\n".join(blocks)

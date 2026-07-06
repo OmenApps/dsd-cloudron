@@ -4,3 +4,11 @@ db.sqlite3
 .venv/
 staticfiles/
 media/
+
+# Never commit secrets or local-only overrides. The image's .dockerignore keeps
+# these out of the build; this keeps them out of the repo in the first place.
+.env
+.env.*
+*.pem
+*.key
+local_settings.py

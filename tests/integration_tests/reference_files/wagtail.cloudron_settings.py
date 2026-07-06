@@ -96,3 +96,9 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
             print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)
         if _code is not None:
             exec(_code)
+
+elif os.environ.get("DSD_CLOUDRON_IMAGE"):
+    raise RuntimeError(
+        "CLOUDRON_APP_ORIGIN is unset on a Cloudron image; refusing to start "
+        "with insecure development settings."
+    )

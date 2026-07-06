@@ -4,6 +4,10 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV VENV_PATH=/app/code/venv
 ENV PATH=$VENV_PATH/bin:$PATH
+# Baked-in marker that this is a Cloudron image. cloudron_settings.py reads it to
+# fail closed: if the platform ever starts the app without CLOUDRON_APP_ORIGIN,
+# the settings refuse to boot rather than fall back to insecure dev defaults.
+ENV DSD_CLOUDRON_IMAGE=1
 
 RUN mkdir -p /app/code /app/pkg
 WORKDIR /app/code

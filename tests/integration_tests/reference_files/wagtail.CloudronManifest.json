@@ -1,5 +1,6 @@
 {
   "manifestVersion": 2,
+  "minBoxVersion": "8.0.0",
   "id": "com.example.blog",
   "title": "Blog",
   "author": "Your Name",

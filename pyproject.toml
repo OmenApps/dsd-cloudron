@@ -26,7 +26,11 @@ requires-python = ">=3.11"
 dependencies = [
     "django>=4.2",
     "pluggy>=1.5.0",
-    "django-simple-deploy>=0.9.4",
+    # Core must be new enough to call the plugin CLI hooks (dsd_get_plugin_cli /
+    # dsd_validate_cli, wired since 1.2.1) and the uv retrofit pre-inspect hook
+    # (dsd_pre_inspect, since 1.4.0). An older core silently drops those hooks:
+    # every deploy flag fails argparse and a uv-managed retrofit is skipped.
+    "django-simple-deploy>=1.4.0",
     "cookiecutter>=2.5",
 ]
 

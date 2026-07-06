@@ -136,7 +136,8 @@ def test_sso_wires_socialaccount_providers(tmp_path):
     assert '"openid_connect"' in settings
     assert '"provider_id": "cloudron"' in settings
     assert "CLOUDRON_OIDC_CLIENT_ID" in settings
-    assert "/.well-known/openid-configuration" in settings
+    # server_url comes straight from the discovery URL Cloudron publishes.
+    assert 'os.environ["CLOUDRON_OIDC_DISCOVERY_URL"]' in settings
 
 
 def test_sso_off_omits_socialaccount_block(tmp_path):
@@ -253,7 +254,7 @@ def test_scaffold_pins_psycopg3_driver(tmp_path):
     # (psycopg3), so both paths run on one driver. Assert the TOML-quoted tokens.
     project = _scaffold(tmp_path)
     text = (project / "pyproject.toml").read_text()
-    assert '"psycopg[binary]"' in text
+    assert '"psycopg[binary]>=3.1.12"' in text
     assert '"psycopg2-binary"' not in text
 
 

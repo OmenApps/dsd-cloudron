@@ -68,7 +68,7 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
 
     ACCOUNT_ADAPTER = "blog.cloudron_adapters.NoSignupAccountAdapter"
     SOCIALACCOUNT_ADAPTER = "blog.cloudron_adapters.CloudronSocialAccountAdapter"
-    if os.environ.get("CLOUDRON_OIDC_ISSUER"):
+    if os.environ.get("CLOUDRON_OIDC_DISCOVERY_URL"):
         SOCIALACCOUNT_PROVIDERS = {
             "openid_connect": {
                 "APPS": [
@@ -77,7 +77,7 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
                         "name": os.environ.get("CLOUDRON_OIDC_PROVIDER_NAME", "Cloudron"),
                         "client_id": os.environ["CLOUDRON_OIDC_CLIENT_ID"],
                         "secret": os.environ["CLOUDRON_OIDC_CLIENT_SECRET"],
-                        "settings": {"server_url": os.environ["CLOUDRON_OIDC_ISSUER"] + "/.well-known/openid-configuration"},
+                        "settings": {"server_url": os.environ["CLOUDRON_OIDC_DISCOVERY_URL"]},
                     }
                 ]
             }
@@ -108,3 +108,9 @@ if os.environ.get("CLOUDRON_APP_ORIGIN"):
             print("custom_settings.py must be owned by root and not group/other-writable (create it root:cloudron mode 640 via cloudron exec); skipping", file=_sys.stderr)
         if _code is not None:
             exec(_code)
+
+elif os.environ.get("DSD_CLOUDRON_IMAGE"):
+    raise RuntimeError(
+        "CLOUDRON_APP_ORIGIN is unset on a Cloudron image; refusing to start "
+        "with insecure development settings."
+    )

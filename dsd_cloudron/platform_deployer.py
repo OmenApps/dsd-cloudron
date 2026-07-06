@@ -29,6 +29,26 @@ def _bare_name(requirement):
     return re.split(r"[\[<>=!~ ]", requirement, maxsplit=1)[0].strip()
 
 
+# Postgres driver distributions that all satisfy Django's postgresql backend. A
+# retrofit project already depending on psycopg2 or psycopg2-binary needs no second
+# driver, so any of these covers the psycopg[binary] we would otherwise add -
+# matching on the bare "psycopg" alone would miss psycopg2 and stack a redundant
+# driver into every image.
+_POSTGRES_DRIVERS = frozenset({"psycopg", "psycopg2", "psycopg2-binary"})
+
+
+def _requirement_present(requirement, present):
+    """Whether `present` (a collection of bare names) already covers `requirement`.
+
+    Postgres drivers are interchangeable for our purposes, so any of psycopg,
+    psycopg2, or psycopg2-binary satisfies our psycopg[binary] dependency.
+    """
+    bare = _bare_name(requirement)
+    if bare in _POSTGRES_DRIVERS:
+        return any(driver in present for driver in _POSTGRES_DRIVERS)
+    return bare in present
+
+
 # The settings block core writes always begins with this marker on its own line.
 _SETTINGS_MARKER = "# dsd-cloudron settings."
 # Match the marker line-anchored (unlike core, which substring-matches). The
@@ -383,7 +403,7 @@ class PlatformDeployer:
         # psycopg) defeat, so a re-run would otherwise append a duplicate every
         # deploy. requirements is None until a real deploy populates it (the or []).
         present = dsd_config.requirements or []
-        to_add = [r for r in requirements if _bare_name(r) not in present]
+        to_add = [r for r in requirements if not _requirement_present(r, present)]
         self._added_requirements = to_add
         # add_package takes a per-package version; add_packages (plural) does not.
         for name in to_add:
@@ -408,7 +428,7 @@ class PlatformDeployer:
                 continue
             present.add(_bare_name(line))
 
-        appended = [r for r in requirements if _bare_name(r) not in present]
+        appended = [r for r in requirements if not _requirement_present(r, present)]
         # If Celery is on but celery is already locked, celery[redis] was skipped
         # above; add a bare redis so the broker transport library is still present.
         if (

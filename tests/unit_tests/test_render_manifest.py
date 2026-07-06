@@ -11,6 +11,7 @@ def _manifest(**kwargs):
 def test_manifest_core_fields():
     m = _manifest()
     assert m["manifestVersion"] == 2
+    assert m["minBoxVersion"] == "8.0.0"
     assert m["id"] == "com.example.blog"
     assert m["httpPort"] == 8000
     assert m["healthCheckPath"] == "/"

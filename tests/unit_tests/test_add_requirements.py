@@ -79,6 +79,24 @@ def test_add_requirements_skips_already_present_bracketed_extras(monkeypatch):
     assert "django-redis" in added  # not yet present, still added
 
 
+@pytest.mark.parametrize("driver", ["psycopg2", "psycopg2-binary"])
+def test_add_requirements_skips_when_psycopg2_already_present(monkeypatch, driver):
+    # A retrofit already on the legacy psycopg2 (or psycopg2-binary) driver needs no
+    # second Postgres driver. The bare name differs from "psycopg", so a naive dedup
+    # would stack psycopg[binary] alongside it; the driver-alias check must skip it.
+    added = []
+    monkeypatch.setattr(
+        pd.plugin_utils,
+        "add_package",
+        lambda name, version="": added.append(name),
+    )
+    dsd_config.requirements = [driver, "gunicorn"]
+    plugin_config.enable_celery = False
+    plugin_config.enable_redis = True
+    PlatformDeployer()._add_requirements()
+    assert "psycopg[binary]" not in added  # the existing psycopg2 driver satisfies it
+
+
 @pytest.mark.parametrize("manager", ["poetry", "pipenv"])
 def test_generate_requirements_file_for_locked_managers(monkeypatch, tmp_path, manager):
     # poetry/pipenv retrofits write a requirements.txt (the image installs from it

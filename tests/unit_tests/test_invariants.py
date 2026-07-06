@@ -60,8 +60,10 @@ def test_invariant_all_output_to_stdio_no_rotation():
         assert "stderr_logfile_maxbytes=0" in contents
 
 
-def test_invariant_oidc_guarded_on_issuer_presence():
-    assert 'os.environ.get("CLOUDRON_OIDC_ISSUER")' in render_cloudron_settings(_full())
+def test_invariant_oidc_guarded_on_discovery_url_presence():
+    assert 'os.environ.get("CLOUDRON_OIDC_DISCOVERY_URL")' in render_cloudron_settings(
+        _full()
+    )
 
 
 def test_invariant_plain_http_no_tls_in_nginx():
