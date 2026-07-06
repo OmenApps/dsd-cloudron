@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from django.core.exceptions import ImproperlyConfigured
@@ -94,6 +96,32 @@ def test_build_config_respects_explicit_app_id():
     plugin_config.app_id = "io.omenapps.blog"
     config = PlatformDeployer()._build_config()
     assert config.app_id == "io.omenapps.blog"
+
+
+def test_build_config_pins_split_settings_module():
+    # A Wagtail split-settings project: core appends the Cloudron import to
+    # settings/production.py, so the container must load <project>.settings.production
+    # (not the settings/dev that wsgi/manage.py default to). _build_config derives
+    # that dotted module from the path core chose.
+    dsd_config.local_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    plugin_config.app_id = ""
+    dsd_config.project_root = Path("/app/code")
+    dsd_config.settings_path = Path("/app/code/blog/settings/production.py")
+    config = PlatformDeployer()._build_config()
+    assert config.settings_module == "blog.settings.production"
+
+
+def test_build_config_flat_settings_needs_no_pin():
+    # A plain settings.py project resolves to the <project>.settings default, which
+    # emits no container pin (start.sh stays byte-for-byte identical).
+    dsd_config.local_project_name = "blog"
+    dsd_config.pkg_manager = "req_txt"
+    plugin_config.app_id = ""
+    dsd_config.project_root = Path("/app/code")
+    dsd_config.settings_path = Path("/app/code/blog/settings.py")
+    config = PlatformDeployer()._build_config()
+    assert config.settings_module == "blog.settings"
 
 
 def test_build_config_wraps_value_error_as_dsd_error():

@@ -105,6 +105,32 @@ def test_chown_and_exec_supervisord():
     )
 
 
+def test_no_settings_module_export_for_flat_settings():
+    # A plain <project>/settings.py project needs no DJANGO_SETTINGS_MODULE pin:
+    # wsgi, manage.py, and celery already resolve <project>.settings, and emitting
+    # the export would change the byte-for-byte start.sh for every plain deploy. So
+    # both the empty default and an explicit <project>.settings render no export.
+    assert "export DJANGO_SETTINGS_MODULE" not in _start()
+    assert "export DJANGO_SETTINGS_MODULE" not in _start(
+        settings_module="blog.settings"
+    )
+
+
+def test_pins_split_settings_module_in_container():
+    # A split-settings (Wagtail) project has the Cloudron gate appended to
+    # settings/production.py, but wsgi/manage.py/celery all default to settings/dev,
+    # so the container must pin the module core wrote to or every process (gunicorn,
+    # the migrate/collectstatic calls, celery) loads the ungated dev settings.
+    text = _start(settings_module="blog.settings.production")
+    assert 'export DJANGO_SETTINGS_MODULE="blog.settings.production"' in text
+    # The pin must be set before any management command and before supervisord, so
+    # collectstatic, migrate, and the final exec all inherit it.
+    export_at = text.index("export DJANGO_SETTINGS_MODULE")
+    assert export_at < text.index("collectstatic")
+    assert export_at < text.index("migrate --noinput")
+    assert export_at < text.index("exec /usr/bin/supervisord")
+
+
 def test_chown_excludes_custom_settings():
     # When a custom_settings.py is present its ownership is the settings gate's
     # trust signal, so start.sh must NOT re-chown it (that would launder an

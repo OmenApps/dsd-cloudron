@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build a rendered dsd-cloudron project and boot it under Cloudron-faithful
 # constraints (readonly rootfs, writable /run and /app/data, addon env vars),
-# then assert the health check answers 2xx. No Cloudron account is used; Postgres
+# then assert the health check answers 2xx and that supervisor brought up every
+# long-running program the shape renders. No Cloudron account is used; Postgres
 # and Redis run as local containers to stand in for the addons.
 #
 # Usage: boot_smoke.sh <context_dir> <flavor>
@@ -118,14 +119,51 @@ fi
 
 echo "==> Polling http://127.0.0.1:${HOST_PORT}${HEALTH_PATH} (Host: ${APP_DOMAIN}) for a 2xx"
 CODE=000
+HEALTHY=""
 for _ in $(seq 1 60); do
     CODE="$(curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}' -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HOST_PORT}${HEALTH_PATH}")" || CODE=000
     case "$CODE" in
-        2*) echo "==> Health check passed with HTTP $CODE"; exit 0 ;;
+        2*) HEALTHY=1; break ;;
     esac
     sleep 2
 done
 
-echo "==> Health check FAILED (last code: $CODE); dumping app logs" >&2
+if [ -z "$HEALTHY" ]; then
+    echo "==> Health check FAILED (last code: $CODE); dumping app logs" >&2
+    docker logs "$APP" >&2 || true
+    exit 1
+fi
+echo "==> Health check passed with HTTP $CODE"
+
+# A 2xx only proves nginx and gunicorn serve. Supervisor keeps gunicorn answering
+# even if the Celery worker or beat crash-loop, so assert every long-running
+# program this shape renders is actually RUNNING - otherwise a dead worker or beat
+# would slip through a green health check.
+case "$FLAVOR" in
+    retrofit-lean) EXPECTED_PROGRAMS="gunicorn nginx" ;;
+    greenfield-full) EXPECTED_PROGRAMS="gunicorn celery-worker celery-beat nginx" ;;
+esac
+
+echo "==> Verifying supervisor programs are RUNNING: ${EXPECTED_PROGRAMS}"
+STATUS=""
+for _ in $(seq 1 15); do
+    STATUS="$(docker exec "$APP" supervisorctl status 2>/dev/null || true)"
+    ALL_RUNNING=1
+    for prog in $EXPECTED_PROGRAMS; do
+        if ! printf '%s\n' "$STATUS" | grep -qE "^${prog}[[:space:]]+RUNNING"; then
+            ALL_RUNNING=""
+            break
+        fi
+    done
+    if [ -n "$ALL_RUNNING" ]; then
+        echo "==> All expected supervisor programs are RUNNING"
+        printf '%s\n' "$STATUS"
+        exit 0
+    fi
+    sleep 2
+done
+
+echo "==> Supervisor programs not all RUNNING; last status:" >&2
+printf '%s\n' "$STATUS" >&2
 docker logs "$APP" >&2 || true
 exit 1

@@ -21,7 +21,7 @@ export SECRET_KEY="$(cat /app/data/.secret_key)"
 
 source "${CODE}/venv/bin/activate"
 
-echo "==> Normalizing ownership"
+{{ settings_module_export }}echo "==> Normalizing ownership"
 # Normalize ownership of the persistent volume, but never touch
 # /app/data/custom_settings.py: its owner is the trust signal the settings
 # gate reads. A plain recursive chown to cloudron:cloudron would downgrade a
