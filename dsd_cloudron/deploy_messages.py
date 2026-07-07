@@ -346,7 +346,9 @@ def changes_summary(config, added_requirements):
         lines.append(
             "- Wagtail: added WAGTAILADMIN_BASE_URL and the database search-backend "
             "override to cloudron_settings.py, and raised the default memoryLimit "
-            "(an explicit --memory-limit overrides it). The "
+            "(an explicit --memory-limit overrides it). start.sh repoints the default "
+            "Wagtail Site at CLOUDRON_APP_ORIGIN every boot so canonical, og:url, and "
+            "sitemap URLs use the real host instead of the localhost seed. The "
             'health check stays "/" (a stock Wagtail site answers there). You add '
             "django.contrib.postgres to INSTALLED_APPS yourself; the optional "
             "multilingual wiring and the matching /healthz/ health view are in the "
@@ -390,10 +392,11 @@ def success_msg(config, location, log_output=""):
         password is generated per install and saved on the server at
         /app/data/.initial_admin_password. Retrieve it with:
             cloudron exec --app {location_hint} -- cat /app/data/.initial_admin_password
-        Read it during this first-boot window: the file is removed automatically on
-        the next start once the app is initialized. If you miss it, reset with
-        `manage.py changepassword admin` via `cloudron exec`. Sign in at /admin/
-        and change the password.
+        The file survives restarts until you acknowledge it, so an image update or
+        health-check restart cannot strand it. Once recorded, retire it with:
+            cloudron exec --app {location_hint} -- touch /app/data/.initial_admin_password.acknowledged
+        If you lose it, reset with `manage.py changepassword admin` via `cloudron
+        exec`. Sign in at /admin/ and change the password.
         """)
     if log_output:
         msg += (
@@ -419,8 +422,10 @@ def success_msg_automate_all(deployed_url):
         A default admin account `admin` was created; its password is generated
         per install and saved on the server at /app/data/.initial_admin_password.
         Read it with `cloudron exec --app <subdomain> -- cat
-        /app/data/.initial_admin_password` during this first-boot window: the file
-        is removed automatically on the next start once the app is initialized. If
-        you miss it, reset with `manage.py changepassword admin` via `cloudron
-        exec`. Change the password after signing in.
+        /app/data/.initial_admin_password`. The file survives restarts until you
+        acknowledge it (`cloudron exec --app <subdomain> -- touch
+        /app/data/.initial_admin_password.acknowledged`), so a restart cannot strand
+        it; the next start then removes it. If you lose it, reset with `manage.py
+        changepassword admin` via `cloudron exec`. Change the password after signing
+        in.
         """)

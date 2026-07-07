@@ -34,3 +34,9 @@ def test_wagtail_artifacts(tmp_project, request):
         "dsd-cloudron",
         reference_filename="wagtail.README-cloudron.md",
     )
+    hf.check_reference_file(
+        tmp_project,
+        "start.sh",
+        "dsd-cloudron",
+        reference_filename="wagtail.start.sh",
+    )

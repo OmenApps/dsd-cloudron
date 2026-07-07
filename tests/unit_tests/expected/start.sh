@@ -53,17 +53,6 @@ if ! gosu cloudron:cloudron python3 "${CODE}/manage.py" migrate --noinput; then
     exit 1
 fi
 
-# Once the app is initialized, drop the one-time admin password file so the
-# bootstrap secret's lifetime is bounded to roughly one restart cycle instead of
-# riding along in every backup. This runs BEFORE the first-run block below: inside
-# that block .initialized cannot exist, so it would never fire there. The retry
-# window is preserved - .initialized is touched only after createsuperuser
-# succeeds, so a failed first run keeps the file for the next attempt.
-if [[ -f /app/data/.initialized && -f /app/data/.initial_admin_password ]]; then
-    echo "==> Removing the one-time initial admin password file"
-    rm -f /app/data/.initial_admin_password
-fi
-
 if [[ ! -f /app/data/.initialized ]]; then
     echo "==> First run: creating default admin superuser"
     # Generate a per-install random password so the open-source image ships no
@@ -90,6 +79,27 @@ if [[ ! -f /app/data/.initialized ]]; then
         touch /app/data/.initialized
     else
         echo "==> Superuser not created; will retry on next start"
+    fi
+fi
+
+# Retire the one-time admin password only after the operator acknowledges they
+# have it - never on a plain restart. Deleting it by restart count strands it:
+# image updates and health-check restarts reuse the persistent /app/data and boot
+# a fresh container first, so the file's creating container is usually gone before
+# an operator can open a shell. Instead keep reprinting the retrieve + acknowledge
+# steps every boot - never the value - and delete the file only once
+# /app/data/.initial_admin_password.acknowledged exists (the operator touches it
+# via `cloudron exec`, which runs as root). Clear the marker alongside the file so
+# a later re-init generates and re-announces a fresh password instead of deleting
+# it against a stale acknowledgement.
+if [[ -f /app/data/.initial_admin_password ]]; then
+    if [[ -f /app/data/.initial_admin_password.acknowledged ]]; then
+        echo "==> Initial admin password acknowledged; removing the one-time file"
+        rm -f /app/data/.initial_admin_password /app/data/.initial_admin_password.acknowledged
+    else
+        echo "==> A generated admin password is stored on the server. Retrieve it, then acknowledge so it can be removed:"
+        echo "==>   cloudron exec --app <subdomain> -- cat /app/data/.initial_admin_password"
+        echo "==>   cloudron exec --app <subdomain> -- touch /app/data/.initial_admin_password.acknowledged"
     fi
 fi
 

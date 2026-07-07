@@ -6,7 +6,7 @@ under `set -eu` as root. So there is nothing to "template": the harness rewrites
 the rendered TEXT to relocate those roots under a tmp sandbox, stubs manage.py
 and the gosu/chown binaries, and runs `bash start.sh`. That lets us assert the
 things a substring check cannot: the secret-key temp+mv and chmod 600, key
-idempotency, admin-password retry-safety and auto-delete, that a failed migrate
+idempotency, admin-password retry-safety and acknowledgement-gated retirement, that a failed migrate
 emits the MIGRATE_FAILED marker and aborts before the first-run bootstrap, and that
 start.sh's recursive chown deliberately excludes /app/data/custom_settings.py (whose
 owner is the trust signal the settings gate reads).
@@ -165,7 +165,7 @@ def test_secret_key_written_600_and_stable(tmp_path):
     assert key.read_text(encoding="utf-8") == first
 
 
-def test_admin_password_written_600_then_auto_removed(tmp_path):
+def test_admin_password_persists_across_restarts_until_acknowledged(tmp_path):
     harness = _Harness(tmp_path)
     harness.run()  # first run: createsuperuser succeeds, .initialized is written
     password = harness.data / ".initial_admin_password"
@@ -173,10 +173,21 @@ def test_admin_password_written_600_then_auto_removed(tmp_path):
     assert _mode(password) == 0o600
     assert (harness.data / ".initialized").exists()
 
-    # Next start: initialized + password both present, so the bootstrap secret is
-    # dropped rather than riding along in every backup.
+    # An ordinary restart must NOT strand the password: retirement is gated on
+    # operator acknowledgement, not restart count, so an image update or a
+    # health-check restart (both reuse the persistent /app/data) leaves the
+    # generated password retrievable.
+    harness.run()
+    assert password.exists()
+
+    # Once the operator retrieves it and touches the acknowledgement marker (via
+    # `cloudron exec`, as root), the next start retires both files so the secret
+    # stops riding along in every backup.
+    ack = harness.data / ".initial_admin_password.acknowledged"
+    ack.touch()
     harness.run()
     assert not password.exists()
+    assert not ack.exists()
 
 
 def test_admin_password_retried_with_same_value_when_superuser_fails(tmp_path):

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Retrofit `--wagtail`: `start.sh` now repoints the default Wagtail `Site` record at
+  `CLOUDRON_APP_ORIGIN` on every boot. `page.full_url`, canonical links, `og:url`, and
+  `sitemap.xml` derive from the `Site` record rather than `WAGTAILADMIN_BASE_URL`, so
+  without this a fresh install served the `localhost:80` seed. The non-Wagtail
+  `start.sh` is byte-for-byte unchanged.
+- The generated admin password is now retired only after the operator acknowledges
+  it (a `/app/data/.initial_admin_password.acknowledged` marker touched via `cloudron
+  exec`), not on the next container start. Deleting by restart count stranded it -
+  image updates and health-check restarts start a fresh container before an operator
+  can read it. `start.sh` reprints the retrieve + acknowledge steps every boot while
+  the file remains, never the value.
+- Split-settings projects now pin `DJANGO_SETTINGS_MODULE` as a Dockerfile `ENV`
+  instead of a `start.sh` export, so a `cloudron exec` shell loads production
+  settings too; and `cloudron_settings.py` reads the persisted key file when
+  `SECRET_KEY` is absent from the environment. Together these fix `manage.py
+  changepassword admin` recovery, which previously failed in an exec shell.
+
 ## 2026.7.1
 
 Initial release.

@@ -71,3 +71,27 @@ def test_install_block_not_html_escaped():
         text = _dockerfile(pkg_manager=manager)
         assert "&amp;" not in text
         assert "&& \\" in text
+
+
+def test_no_settings_module_env_for_flat_settings():
+    # A flat <project>/settings.py project needs no DJANGO_SETTINGS_MODULE pin -
+    # wsgi/manage.py/celery already resolve <project>.settings - so the Dockerfile
+    # stays byte-for-byte identical to the no-pin default.
+    assert "ENV DJANGO_SETTINGS_MODULE" not in _dockerfile()
+    assert "ENV DJANGO_SETTINGS_MODULE" not in _dockerfile(
+        settings_module="blog.settings"
+    )
+
+
+def test_pins_split_settings_module_as_env():
+    # A split-settings (Wagtail) project has the Cloudron gate appended to
+    # settings/production.py while wsgi/manage.py/celery default to settings/dev.
+    # Baking the module as an image ENV pins it for the supervisor process tree AND
+    # for `cloudron exec` shells (where `manage.py changepassword admin` recovery
+    # would otherwise load dev settings and hit SQLite on the read-only rootfs).
+    text = _dockerfile(settings_module="blog.settings.production")
+    assert 'ENV DJANGO_SETTINGS_MODULE="blog.settings.production"' in text
+    # The ENV must precede the CMD so every runtime process (and exec shell) inherits it.
+    assert text.index("ENV DJANGO_SETTINGS_MODULE") < text.index(
+        'CMD ["/app/pkg/start.sh"]'
+    )

@@ -8,7 +8,11 @@ import os
 if os.environ.get("CLOUDRON_APP_ORIGIN"):
     DEBUG = False
 
-    SECRET_KEY = os.environ["SECRET_KEY"]
+    # start.sh generates and exports SECRET_KEY, but only into its own
+    # process tree; a `cloudron exec` shell (the documented `changepassword
+    # admin` recovery) has none, so fall back to the key file start.sh writes
+    # to /app/data (mode 600) when the env var is absent.
+    SECRET_KEY = os.environ.get("SECRET_KEY") or open("/app/data/.secret_key").read().strip()
 
     ALLOWED_HOSTS = [os.environ["CLOUDRON_APP_DOMAIN"]]
     CSRF_TRUSTED_ORIGINS = [os.environ["CLOUDRON_APP_ORIGIN"]]

@@ -185,6 +185,11 @@ CASES = [
         REFERENCE / "wagtail.README-cloudron.md",
         id="wagtail-readme",
     ),
+    pytest.param(
+        lambda: render_start_sh(_wagtail_config()),
+        REFERENCE / "wagtail.start.sh",
+        id="wagtail-start_sh",
+    ),
 ]
 
 

@@ -61,10 +61,38 @@ def test_settings_on_cloudron_gate_and_core():
     text = _settings()
     assert 'if os.environ.get("CLOUDRON_APP_ORIGIN"):' in text
     assert "DEBUG = False" in text
-    assert 'SECRET_KEY = os.environ["SECRET_KEY"]' in text
+    assert (
+        'SECRET_KEY = os.environ.get("SECRET_KEY") or '
+        'open("/app/data/.secret_key").read().strip()'
+    ) in text
     assert "SECURE_PROXY_SSL_HEADER" in text
     assert '"django.db.backends.postgresql"' in text
     assert 'STATIC_ROOT = "/run/blog/static"' in text
+
+
+def test_settings_secret_key_falls_back_to_key_file(monkeypatch):
+    # start.sh exports SECRET_KEY only into its own process tree, so a `cloudron exec`
+    # shell (the documented `changepassword admin` recovery) has none. The settings
+    # must then read the key file start.sh persists to /app/data, not raise KeyError.
+    for key, value in _BASE_CLOUDRON_ENV.items():
+        if key != "SECRET_KEY":
+            monkeypatch.setenv(key, value)
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+
+    import builtins
+    import io
+
+    real_open = builtins.open
+
+    def fake_open(path, *args, **kwargs):
+        if path == "/app/data/.secret_key":
+            return io.StringIO("file-key\n")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    namespace = {}
+    exec(compile(_settings(), "<cloudron_settings>", "exec"), namespace)
+    assert namespace["SECRET_KEY"] == "file-key"
 
 
 def test_settings_redis_conditional():

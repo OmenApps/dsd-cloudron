@@ -53,6 +53,27 @@ if ! gosu cloudron:cloudron python3 "${CODE}/manage.py" migrate --noinput; then
     exit 1
 fi
 
+# Point the default Wagtail Site at the deployed host. page.full_url, canonical
+# links, og:url, and sitemap.xml derive from the Wagtail Site record, NOT
+# WAGTAILADMIN_BASE_URL, so without this a fresh install serves the localhost:80
+# seed. cloudron_settings.py sets WAGTAILADMIN_BASE_URL from CLOUDRON_APP_ORIGIN;
+# read the host back from it here. Idempotent every boot; the instance .save()
+# (not a queryset .update()) fires the post_save signal that clears Wagtail's
+# cached site root paths, which a bare UPDATE would leave stale.
+echo "==> Pointing the default Wagtail Site at the deployed host"
+gosu cloudron:cloudron python3 "${CODE}/manage.py" shell -c '
+from urllib.parse import urlparse
+from django.conf import settings
+from wagtail.models import Site
+parsed = urlparse(settings.WAGTAILADMIN_BASE_URL)
+site = Site.objects.filter(is_default_site=True).first()
+if parsed.hostname and site is not None:
+    site.hostname = parsed.hostname
+    site.port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    site.save()
+    print("Default Wagtail Site ->", site.hostname, site.port)
+'
+
 if [[ ! -f /app/data/.initialized ]]; then
     echo "==> First run: creating default admin superuser"
     # Generate a per-install random password so the open-source image ships no

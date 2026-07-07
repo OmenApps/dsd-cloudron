@@ -72,16 +72,15 @@ def test_manifest_postinstall_uses_sso_tags():
     assert "changeme123" not in msg  # no literal credential in the public manifest
 
 
-def test_manifest_postinstall_says_password_file_auto_removed():
-    # start.sh removes the file on the next start after init, so the message must
-    # not tell the operator it persists until they delete it (now false and worse:
-    # they would assume leisure and find it gone).
+def test_manifest_postinstall_explains_acknowledgement_retirement():
+    # The password file is retired on operator acknowledgement, not by restart count.
+    # The message must not claim automatic removal on the next start (which strands
+    # the password across image updates and health-check restarts), and must point
+    # the operator at the acknowledgement marker instead.
     msg = _manifest()["postInstallMessage"]
-    assert "persists in backups until you do" not in msg
-    assert "Delete that file once you have recorded" not in msg
-    # And positively assert the new claim, so a message that stops mentioning the
-    # auto-removal (or contradicts it) fails here.
-    assert "removed automatically on the next start" in msg
+    assert "removed automatically on the next start" not in msg
+    assert ".initial_admin_password.acknowledged" in msg
+    assert "reprints these steps every" in msg
 
 
 def test_manifest_version_and_author_passthrough():

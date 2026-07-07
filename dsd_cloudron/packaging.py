@@ -125,21 +125,25 @@ def _context(config):
     ints/floats through global settings during rendering, which raises offline,
     but bools are safe.
     """
-    # Pin DJANGO_SETTINGS_MODULE in the container only when it differs from the
+    # Pin DJANGO_SETTINGS_MODULE as a Dockerfile ENV when it differs from the
     # <project>.settings default. A split-settings (Wagtail) project has the Cloudron
     # gate appended to settings/production.py while wsgi/manage.py/celery default to
-    # settings/dev, so every container process would otherwise load the ungated dev
-    # settings; pinning the module core wrote to fixes gunicorn, the migrate and
-    # collectstatic calls, and celery at once. The flat-settings case emits nothing,
-    # so start.sh stays byte-for-byte identical there.
+    # settings/dev, so without a pin every container process loads the ungated dev
+    # settings - and so does a `cloudron exec` shell, where `manage.py changepassword
+    # admin` recovery then hits SQLite on the read-only rootfs ("unable to open
+    # database file"). Baking it into the image ENV covers the supervisor process tree
+    # AND exec shells; a start.sh export would reach only the former. The flat-settings
+    # case emits nothing, so the Dockerfile stays byte-for-byte identical there.
     effective_settings_module = (
         config.settings_module or f"{config.project_name}.settings"
     )
     if effective_settings_module == f"{config.project_name}.settings":
-        settings_module_export = ""
+        settings_module_env = ""
     else:
-        settings_module_export = (
-            f'export DJANGO_SETTINGS_MODULE="{effective_settings_module}"\n\n'
+        settings_module_env = (
+            "# Pin the production settings module so `cloudron exec` shells (e.g. for\n"
+            "# `manage.py changepassword admin`) load it too, not the project's dev default.\n"
+            f'ENV DJANGO_SETTINGS_MODULE="{effective_settings_module}"\n'
         )
     return {
         "project_name": config.project_name,
@@ -150,9 +154,9 @@ def _context(config):
         "greenfield": config.greenfield,
         "enable_sso": config.enable_sso,
         "enable_wagtail": config.enable_wagtail,
-        # Either an `export DJANGO_SETTINGS_MODULE=...` line (with a trailing blank
-        # line) for a split-settings project, or "" for the flat-settings default.
-        "settings_module_export": settings_module_export,
+        # An `ENV DJANGO_SETTINGS_MODULE=...` block (with its explanatory comment)
+        # for a split-settings project, or "" for the flat-settings default.
+        "settings_module_env": settings_module_env,
     }
 
 
@@ -332,11 +336,13 @@ def render_manifest(config):
         "postInstallMessage": (
             "This app was configured with dsd-cloudron. A local admin account "
             "`admin` was created; its generated password is on the server at "
-            "/app/data/.initial_admin_password (read it with `cloudron exec`). "
-            "Read it during this first-boot window: the file is removed "
-            "automatically on the next start once the app is initialized. If you "
-            "miss it, reset the password with `cloudron exec` and `manage.py "
-            "changepassword admin`.\n\n"
+            "/app/data/.initial_admin_password. Read it with `cloudron exec --app "
+            "<subdomain> -- cat /app/data/.initial_admin_password`, then mark it "
+            "retrieved so the file is removed: `cloudron exec --app <subdomain> -- "
+            "touch /app/data/.initial_admin_password.acknowledged`. Until you "
+            "acknowledge, start.sh keeps the file and reprints these steps every "
+            "boot, so a restart cannot strand it. If you lose it, reset the "
+            "password with `cloudron exec` and `manage.py changepassword admin`.\n\n"
             "<nosso>\n"
             "Sign in at /admin/ with that account, then change the password "
             "immediately.\n"
@@ -367,7 +373,11 @@ def render_cloudron_settings(config):
         "import os\n\n"
         'if os.environ.get("CLOUDRON_APP_ORIGIN"):\n'
         "    DEBUG = False\n\n"
-        '    SECRET_KEY = os.environ["SECRET_KEY"]\n\n'
+        "    # start.sh generates and exports SECRET_KEY, but only into its own\n"
+        "    # process tree; a `cloudron exec` shell (the documented `changepassword\n"
+        "    # admin` recovery) has none, so fall back to the key file start.sh writes\n"
+        "    # to /app/data (mode 600) when the env var is absent.\n"
+        '    SECRET_KEY = os.environ.get("SECRET_KEY") or open("/app/data/.secret_key").read().strip()\n\n'
         '    ALLOWED_HOSTS = [os.environ["CLOUDRON_APP_DOMAIN"]]\n'
         '    CSRF_TRUSTED_ORIGINS = [os.environ["CLOUDRON_APP_ORIGIN"]]\n'
         '    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")\n'

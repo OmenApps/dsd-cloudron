@@ -78,21 +78,33 @@ def test_superuser_password_not_exported_to_long_lived_env():
     assert "export DJANGO_SUPERUSER_PASSWORD" not in text
 
 
-def test_initial_admin_password_file_removed_after_init():
-    # Once .initialized exists (the first run succeeded), the one-time password
-    # file is removed on the next start so it stops riding along in every backup.
+def test_initial_admin_password_retired_only_on_acknowledgement():
+    # The one-time password file is retired only once the operator acknowledges they
+    # have it (the .acknowledged marker they touch via `cloudron exec`), never by
+    # restart count - coupling deletion to restarts strands it, because image updates
+    # and health-check restarts start a fresh container before an operator can read
+    # it. The delete clears the marker alongside the file so a later re-init
+    # re-announces a fresh password instead of deleting it against a stale ack.
     text = _start()
-    assert "rm -f /app/data/.initial_admin_password" in text
-    # The cleanup is guarded on .initialized so a failed first run (which leaves
-    # .initialized absent) keeps the file for the retry. rfind returns -1 (not a
+    delete = (
+        "rm -f /app/data/.initial_admin_password "
+        "/app/data/.initial_admin_password.acknowledged"
+    )
+    assert delete in text
+    # The delete is guarded on the acknowledgement marker. rfind returns -1 (not a
     # ValueError) when the guard is absent, so the assertion can actually fail.
-    cleanup = text.index("rm -f /app/data/.initial_admin_password")
-    guard = text.rfind("/app/data/.initialized", 0, cleanup)
+    guard = text.rfind(
+        "/app/data/.initial_admin_password.acknowledged", 0, text.index(delete)
+    )
     assert guard != -1
-    # It runs BEFORE the first-run block, not inside it (inside, .initialized can
-    # never exist, so it would never fire).
+    # While the file is present and unacknowledged, every boot reprints the retrieve
+    # + acknowledge steps - but never the password value itself.
+    assert "cat /app/data/.initial_admin_password" in text
+    assert "touch /app/data/.initial_admin_password.acknowledged" in text
+    # Retirement runs AFTER the first-run block (it depends on the file + marker, not
+    # on .initialized), so the reminder fires on the very boot that creates the file.
     first_run = text.index("First run: creating default admin superuser")
-    assert cleanup < first_run
+    assert text.index("A generated admin password is stored on the server") > first_run
 
 
 def test_chown_and_exec_supervisord():
@@ -105,30 +117,18 @@ def test_chown_and_exec_supervisord():
     )
 
 
-def test_no_settings_module_export_for_flat_settings():
-    # A plain <project>/settings.py project needs no DJANGO_SETTINGS_MODULE pin:
-    # wsgi, manage.py, and celery already resolve <project>.settings, and emitting
-    # the export would change the byte-for-byte start.sh for every plain deploy. So
-    # both the empty default and an explicit <project>.settings render no export.
+def test_start_sh_never_exports_settings_module():
+    # The DJANGO_SETTINGS_MODULE pin lives in the Dockerfile as an ENV (so a
+    # `cloudron exec` shell inherits it too, not just the supervisor process tree
+    # a start.sh export would reach); see test_render_dockerfile.py. start.sh must
+    # carry no export in either the flat or the split-settings case.
     assert "export DJANGO_SETTINGS_MODULE" not in _start()
     assert "export DJANGO_SETTINGS_MODULE" not in _start(
         settings_module="blog.settings"
     )
-
-
-def test_pins_split_settings_module_in_container():
-    # A split-settings (Wagtail) project has the Cloudron gate appended to
-    # settings/production.py, but wsgi/manage.py/celery all default to settings/dev,
-    # so the container must pin the module core wrote to or every process (gunicorn,
-    # the migrate/collectstatic calls, celery) loads the ungated dev settings.
-    text = _start(settings_module="blog.settings.production")
-    assert 'export DJANGO_SETTINGS_MODULE="blog.settings.production"' in text
-    # The pin must be set before any management command and before supervisord, so
-    # collectstatic, migrate, and the final exec all inherit it.
-    export_at = text.index("export DJANGO_SETTINGS_MODULE")
-    assert export_at < text.index("collectstatic")
-    assert export_at < text.index("migrate --noinput")
-    assert export_at < text.index("exec /usr/bin/supervisord")
+    assert "export DJANGO_SETTINGS_MODULE" not in _start(
+        settings_module="blog.settings.production"
+    )
 
 
 def test_chown_excludes_custom_settings():
@@ -140,3 +140,32 @@ def test_chown_excludes_custom_settings():
     text = _start()
     assert "-path /app/data/custom_settings.py -prune" in text
     assert "chown -h cloudron:cloudron" in text
+
+
+def test_wagtail_flag_syncs_default_site_after_migrate():
+    # With --wagtail, start.sh repoints the default Wagtail Site at the deployed host
+    # on every boot. page.full_url, canonical, og:url, and sitemap.xml derive from the
+    # Site record, not WAGTAILADMIN_BASE_URL, so a fresh install would otherwise emit
+    # the localhost:80 seed. The host is read back from WAGTAILADMIN_BASE_URL, which
+    # cloudron_settings.py sets from CLOUDRON_APP_ORIGIN.
+    text = _start(enable_wagtail=True)
+    assert "is_default_site=True" in text
+    assert "settings.WAGTAILADMIN_BASE_URL" in text
+    # Instance .save() (not a queryset .update()) so Wagtail's post_save signal clears
+    # the cached site root paths a bare UPDATE would leave stale.
+    assert "site.save()" in text
+    # It must run after migrate (the Site table has to exist) and before the one-time
+    # admin bootstrap, so it sits inside neither the migrate guard nor the
+    # .initialized block.
+    assert text.index("migrate --noinput") < text.index("is_default_site=True")
+    assert text.index("is_default_site=True") < text.index("/app/data/.initialized")
+
+
+def test_no_wagtail_site_sync_without_flag():
+    # The plain (non-Wagtail) start.sh must not carry the Site-sync block at all. The
+    # golden snapshot pins the exact byte-for-byte equality with the pre-change
+    # script; this guards the intent in a way a re-pinned golden alone would not.
+    text = _start()
+    assert "is_default_site" not in text
+    assert "WAGTAILADMIN_BASE_URL" not in text
+    assert "Wagtail Site" not in text
