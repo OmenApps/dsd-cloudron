@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2026.7.2
 
 - Retrofit `--wagtail`: `start.sh` now repoints the default Wagtail `Site` record at
   `CLOUDRON_APP_ORIGIN` on every boot. `page.full_url`, canonical links, `og:url`, and

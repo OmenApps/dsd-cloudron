@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dsd-cloudron"
-version = "2026.7.1"
+version = "2026.7.2"
 description = "A plugin for django-simple-deploy, supporting deployments to Cloudron."
 readme = "README.md"
 license = "MIT"
